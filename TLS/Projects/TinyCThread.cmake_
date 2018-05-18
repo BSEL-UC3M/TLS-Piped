@@ -1,0 +1,30 @@
+# Author: Ali Uneri
+# Date: 2015-06-26
+
+set(EP_OPTION_NAME "USE_${EP_NAME}")
+set(EP_REQUIRED_PROJECTS Git)
+set(EP_URL "git://github.com/tinycthread/tinycthread.git")
+set(EP_PATCH "${CMAKE_CURRENT_LIST_DIR}/Patches/${EP_NAME}.patch")
+
+cma_end_definition()
+# -----------------------------------------------------------------------------
+
+ExternalProject_Add(${EP_NAME}
+  DEPENDS ${EP_REQUIRED_PROJECTS}
+  # download
+  GIT_REPOSITORY ${EP_URL}
+  GIT_TAG 0d8de3c6c45b57a6ce79cf317378639820aac6b6
+  # patch
+  # update
+  UPDATE_COMMAND ""
+  # configure
+  SOURCE_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}
+  CONFIGURE_COMMAND ""
+  # build
+  BUILD_COMMAND ""
+  # install
+  INSTALL_COMMAND ""
+  # test
+  )
+
+set(${PROJECT_NAME}_TinyCThread_SOURCE_DIR "${PROJECT_BINARY_DIR}/${EP_NAME}/source" CACHE INTERNAL "")

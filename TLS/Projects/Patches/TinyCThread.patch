@@ -1,0 +1,24 @@
+diff --git a/source/tinycthread.c b/source/tinycthread.c
+index cbd7759..3e90a2a 100644
+--- a/source/tinycthread.c
++++ b/source/tinycthread.c
+@@ -520,9 +520,17 @@ static void NTAPI _tinycthread_tss_callback(PVOID h, DWORD dwReason, PVOID pv)
+ }
+ 
+ #if defined(_MSC_VER)
+-#pragma data_seg(".CRT$XLB")
++#ifdef _M_X64
++ #pragma const_seg(".CRT$XLB")
++#else
++ #pragma data_seg(".CRT$XLB")
++#endif
+ PIMAGE_TLS_CALLBACK p_thread_callback = _tinycthread_tss_callback;
+-#pragma data_seg()
++#ifdef _M_X64
++ #pragma data_seg()
++#else
++ #pragma const_seg()
++#endif
+ #else
+ PIMAGE_TLS_CALLBACK p_thread_callback __attribute__((section(".CRT$XLB"))) = _tinycthread_tss_callback;
+ #endif

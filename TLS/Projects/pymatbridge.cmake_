@@ -1,0 +1,30 @@
+# Author: Ali Uneri
+# Date: 2015-03-21
+
+set(EP_OPTION_NAME "USE_${EP_NAME}")
+set(EP_REQUIRED_PROJECTS Git MATLAB Python)
+set(EP_URL "git://github.com/arokem/python-matlab-bridge.git")
+
+cma_end_definition()
+# -----------------------------------------------------------------------------
+
+file(TO_NATIVE_PATH ${PROJECT_BINARY_DIR} PROJECT_BINARY_NATIVE_DIR)
+
+ExternalProject_Add(${EP_NAME}
+  DEPENDS ${EP_REQUIRED_PROJECTS}
+  # download
+  GIT_REPOSITORY ${EP_URL}
+  GIT_TAG 0.5.2
+  # patch
+  # update
+  UPDATE_COMMAND ""
+  # configure
+  SOURCE_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}
+  CONFIGURE_COMMAND ""
+  # build
+  BINARY_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}
+  BUILD_COMMAND ${${PROJECT_NAME}_PYTHON_EXECUTABLE} setup.py build -b "${PROJECT_BINARY_DIR}/${EP_NAME}-build" install
+  # install
+  INSTALL_COMMAND ""
+  # test
+  )

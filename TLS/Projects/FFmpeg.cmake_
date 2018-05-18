@@ -1,0 +1,41 @@
+# Author: Ali Uneri
+# Date: 2014-12-11
+
+set(EP_OPTION_NAME "USE_${EP_NAME}")
+set(EP_REQUIRED_PROJECTS Git)
+set(EP_REQUIRED_OPTIONS UNIX)
+set(EP_URL "git://github.com/FFmpeg/FFmpeg.git")
+
+cma_envvar(@LIBRARYPATH@ PREPEND "@INSTALL_DIR@/@LIBDIR@/@INTDIR@")
+
+cma_end_definition()
+# -----------------------------------------------------------------------------
+
+if(USE_OpenCV OR USE_VTK)
+  set(EP_VERSION "n2.8.6")
+else()
+  set(EP_VERSION "n3.0")
+endif()
+
+ExternalProject_Add(${EP_NAME}
+  DEPENDS ${EP_REQUIRED_PROJECTS}
+  # download
+  GIT_REPOSITORY ${EP_URL}
+  GIT_TAG ${EP_VERSION}
+  # patch
+  # update
+  UPDATE_COMMAND ""
+  # configure
+  SOURCE_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure
+    --prefix=<INSTALL_DIR>
+    --disable-iconv
+    --disable-static
+    --disable-yasm
+    --enable-shared
+  # build
+  BINARY_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}-build
+  # install
+  INSTALL_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}-install
+  # test
+  )

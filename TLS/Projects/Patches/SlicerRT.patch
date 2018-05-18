@@ -1,0 +1,26 @@
+Index: SlicerRtCommon/vtkSlicerAutoWindowLevelLogic.cxx
+===================================================================
+--- SlicerRtCommon/vtkSlicerAutoWindowLevelLogic.cxx	(revision 2001)
++++ SlicerRtCommon/vtkSlicerAutoWindowLevelLogic.cxx	(working copy)
+@@ -26,6 +26,9 @@
+ #include <vtkImageData.h>
+ #include <vtkImageAccumulate.h>
+ 
++// STD includes
++#include <algorithm>
++
+ //----------------------------------------------------------------------------
+ vtkStandardNewMacro(vtkSlicerAutoWindowLevelLogic);
+ 
+Index: VffFileReader/Logic/vtkSlicerVffFileReaderLogic.cxx
+===================================================================
+--- VffFileReader/Logic/vtkSlicerVffFileReaderLogic.cxx	(revision 2001)
++++ VffFileReader/Logic/vtkSlicerVffFileReaderLogic.cxx	(working copy)
+@@ -40,6 +40,7 @@
+ // STD includes
+ #include <vector>
+ #include <fstream>
++#include <functional>
+ #include <string>
+ #include <algorithm>
+ #include <cctype>

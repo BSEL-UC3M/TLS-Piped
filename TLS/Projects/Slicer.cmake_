@@ -1,0 +1,118 @@
+# Author: Ali Uneri
+# Date: 2013-11-24
+
+set(EP_OPTION_NAME "USE_${EP_NAME}")
+set(EP_REQUIRED_PROJECTS CTK DCMTK Git ITK Python Qt Subversion VTK zlib)
+set(EP_URL "git://github.com/Slicer/Slicer.git")
+set(EP_OPTION_DESCRIPTION "3D Slicer")
+
+set(${EP_OPTION_NAME}_VERSION "4.5" CACHE STRING "Slicer version")
+set(${PROJECT_NAME}_Slicer_VERSION "${${EP_OPTION_NAME}_VERSION}" CACHE INTERNAL "")
+
+if(${PROJECT_NAME}_Slicer_VERSION VERSION_EQUAL "4.4")
+  set(EP_PATCH "${CMAKE_CURRENT_LIST_DIR}/Patches/${EP_NAME}-4.4.patch")
+  set(EP_VERSION "ec65caed793f1c5ca1d96e06e4fd8d4a8a24d5db")  # v4.4.0
+elseif(${PROJECT_NAME}_Slicer_VERSION VERSION_EQUAL "4.5")
+  set(EP_PATCH "${CMAKE_CURRENT_LIST_DIR}/Patches/${EP_NAME}-4.5.patch")
+  set(EP_VERSION "46a42f4fc6e0528989e392c8b08bb8edc39eeecb")  # v4.5.0-1
+else()
+  message(FATAL_ERROR "Slicer version ${${PROJECT_NAME}_Slicer_VERSION} is not supported")
+endif()
+
+cma_envvar(@LIBRARYPATH@ PREPEND
+  "@BINARY_DIR@/${EP_NAME}-build/bin/@INTDIR@"
+  "@BINARY_DIR@/${EP_NAME}-build/lib/Slicer-${${PROJECT_NAME}_Slicer_VERSION}/cli-modules/@INTDIR@"
+  "@BINARY_DIR@/${EP_NAME}-build/lib/Slicer-${${PROJECT_NAME}_Slicer_VERSION}/qt-loadable-modules/@INTDIR@"
+  "@BINARY_DIR@/LibArchive-install/@LIBDIR@"
+  "@BINARY_DIR@/OpenIGTLink-build/bin/@INTDIR@"
+  "@BINARY_DIR@/SlicerExecutionModel-build/ModuleDescriptionParser/bin/@INTDIR@"
+  "@BINARY_DIR@/teem-build/bin/@INTDIR@")
+cma_envvar(PYTHONPATH PREPEND
+  "@BINARY_DIR@/${EP_NAME}-build/bin/@INTDIR@"
+  "@BINARY_DIR@/${EP_NAME}-build/bin/Python"
+  "@BINARY_DIR@/${EP_NAME}-build/lib/Slicer-${${PROJECT_NAME}_Slicer_VERSION}/qt-loadable-modules/@INTDIR@"
+  "@BINARY_DIR@/${EP_NAME}-build/bin/lib/Slicer-${${PROJECT_NAME}_Slicer_VERSION}/qt-loadable-modules/Python")
+cma_envvar(QT_PLUGIN_PATH APPEND "@BINARY_DIR@/${EP_NAME}-build/bin")
+
+if(WIN32)
+  cma_envvar(SLICER_EXECUTABLE "@BINARY_DIR@/${EP_NAME}-build/bin/@INTDIR@/SlicerApp-real.exe")
+elseif(APPLE)
+  cma_envvar(SLICER_EXECUTABLE "@BINARY_DIR@/${EP_NAME}-build/bin/Slicer.app/Contents/MacOS/Slicer")
+elseif(UNIX)
+  cma_envvar(SLICER_EXECUTABLE "@BINARY_DIR@/${EP_NAME}-build/bin/SlicerApp-real")
+else()
+  message(FATAL_ERROR "Platform is not supported.")
+endif()
+
+cma_end_definition()
+# -----------------------------------------------------------------------------
+
+if(WIN32)
+  string(LENGTH "${PROJECT_BINARY_DIR}/${EP_NAME}-build" LENGTH)
+  if(LENGTH GREATER 36)
+    message(FATAL_ERROR "Shorter path for ${PROJECT_NAME} build directory is required, since Slicer path is ${LENGTH} > 36 characters")
+  endif()
+endif()
+
+cmake_dependent_option(${EP_OPTION_NAME}_CLI_MODULES "Build Slicer's CLI Modules" OFF ${EP_OPTION_NAME} OFF)
+
+set(EP_CMAKE_ARGS
+  -DADDITIONAL_C_FLAGS:STRING=${CMAKE_C_FLAGS}
+  -DADDITIONAL_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS}
+  -DBUILD_TESTING:BOOL=OFF
+  -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+  -DCTK_DIR:PATH=${${PROJECT_NAME}_CTK_DIR}
+  -DDCMTK_DIR:PATH=${${PROJECT_NAME}_DCMTK_DIR}
+  -DGIT_EXECUTABLE:FILEPATH=${${PROJECT_NAME}_GIT_EXECUTABLE}
+  -DITK_DIR:PATH=${${PROJECT_NAME}_ITK_DIR}
+  -DPYTHON_EXECUTABLE:FILEPATH=${${PROJECT_NAME}_PYTHON_EXECUTABLE}
+  -DPYTHON_INCLUDE_DIR:PATH=${${PROJECT_NAME}_PYTHON_INCLUDE_DIR}
+  -DPYTHON_LIBRARY:FILEPATH=${${PROJECT_NAME}_PYTHON_LIBRARY}
+  -DQT_QMAKE_EXECUTABLE:PATH=${${PROJECT_NAME}_QT_QMAKE_EXECUTABLE}
+  -DSlicer_BUILD_BRAINSTOOLS:BOOL=OFF
+  -DSlicer_BUILD_CLI:BOOL=${${EP_OPTION_NAME}_CLI_MODULES}
+  -DSlicer_BUILD_DIFFUSION_SUPPORT:BOOL=OFF
+  -DSlicer_BUILD_EMSegment:BOOL=OFF
+  -DSlicer_BUILD_MULTIVOLUME_SUPPORT:BOOL=OFF
+  -DSlicer_BUILD_MultiVolumeExplorer:BOOL=OFF
+  -DSlicer_BUILD_MultiVolumeImporter:BOOL=OFF
+  -DSlicer_BUILD_OpenIGTLinkIF:BOOL=ON
+  -DSlicer_ITKV3_COMPATIBILITY:BOOL=OFF
+  -DSlicer_USE_PYTHONQT_WITH_OPENSSL:BOOL=OFF
+  -DSlicer_USE_PYTHONQT_WITH_TCL:BOOL=OFF
+  -DSlicer_USE_SimpleITK:BOOL=OFF
+  -DSlicer_USE_SYSTEM_CTK:BOOL=ON
+  -DSlicer_USE_SYSTEM_DCMTK:BOOL=ON
+  -DSlicer_USE_SYSTEM_ITKv4:BOOL=ON
+  -DSlicer_USE_SYSTEM_python:BOOL=ON
+  -DSlicer_USE_SYSTEM_VTKv6:BOOL=ON
+  -DSlicer_USE_SYSTEM_zlib:BOOL=ON
+  -DSlicer_USE_VTK_DEBUG_LEAKS:BOOL=${USE_VTK_DEBUG_LEAKS}
+  -D${PROJECT_NAME}_PROJECT_SPLASH:FILEPATH=${PROJECT_SOURCE_DIR}/Resources/biigtkLogoSplash.png
+  -DVTK_DIR:PATH=${${PROJECT_NAME}_VTK_DIR}
+  -DVTK_SOURCE_DIR:PATH=${PROJECT_BINARY_DIR}/VTK
+  -DZLIB_ROOT:PATH=${${PROJECT_NAME}_ZLIB_ROOT})
+
+if(APPLE)
+  list(APPEND EP_CMAKE_ARGS -DCMAKE_OSX_DEPLOYMENT_TARGET:STRING=10.9)
+endif()
+
+ExternalProject_Add(${EP_NAME}
+  DEPENDS ${EP_REQUIRED_PROJECTS}
+  # download
+  GIT_REPOSITORY ${EP_URL}
+  GIT_TAG ${EP_VERSION}
+  # patch
+  # update
+  UPDATE_COMMAND ""
+  # configure
+  SOURCE_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}
+  CMAKE_ARGS ${EP_CMAKE_ARGS}
+  # build
+  BINARY_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}-build
+  # install
+  INSTALL_COMMAND ""
+  # test
+  )
+
+set(${PROJECT_NAME}_${EP_NAME}_DIR "${PROJECT_BINARY_DIR}/${EP_NAME}-build/${EP_NAME}-build" CACHE INTERNAL "")

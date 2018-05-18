@@ -1,0 +1,68 @@
+# Author: Ali Uneri
+# Date: 2012-10-28
+
+set(EP_OPTION_NAME "USE_${EP_NAME}")
+set(EP_REQUIRED_PROJECTS Git)
+set(EP_OPTION_DESCRIPTION "DICOM Toolkit")
+
+if(USE_Slicer)
+  set(EP_URL "git://github.com/commontk/DCMTK.git")
+else()
+  set(EP_URL "git://git.dcmtk.org/dcmtk.git")
+endif()
+
+cma_envvar(@LIBRARYPATH@ PREPEND "@BINARY_DIR@/@LIBDIR@/@INTDIR@")
+
+cma_end_definition()
+# -----------------------------------------------------------------------------
+
+if(USE_Slicer)
+  if(${PROJECT_NAME}_Slicer_VERSION VERSION_EQUAL "4.4")
+    set(EP_VERSION "f461865d1759854db56e4c840991c81c77e45bb9")
+  elseif(${PROJECT_NAME}_Slicer_VERSION VERSION_EQUAL "4.5")
+    set(EP_VERSION "f55f3c8d4445a4c8e2d28682b5d9aa24803a4531")
+  else()
+    message(FATAL_ERROR "Slicer version ${${PROJECT_NAME}_Slicer_VERSION} is not supported")
+  endif()
+else()
+  set(EP_VERSION "DCMTK-3.6.1_20150924")
+endif()
+
+set(EP_CMAKE_ARGS
+  -DBUILD_APPS:BOOL=OFF
+  -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+  -DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS}
+  -DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS}
+  -DDCMTK_WITH_DOXYGEN:BOOL=OFF
+  -DDCMTK_WITH_ICONV:BOOL=OFF
+  -DDCMTK_WITH_OPENSSL:BOOL=OFF
+  -DDCMTK_WITH_PNG:BOOL=OFF
+  -DDCMTK_WITH_TIFF:BOOL=OFF
+  -DDCMTK_WITH_XML:BOOL=OFF
+  -DDCMTK_WITH_ZLIB:BOOL=OFF)
+
+if(USE_MITK OR USE_Slicer)
+  list(APPEND EP_CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=ON)
+else()
+  list(APPEND EP_CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF)
+endif()
+
+ExternalProject_Add(${EP_NAME}
+  DEPENDS ${EP_REQUIRED_PROJECTS}
+  # download
+  GIT_REPOSITORY ${EP_URL}
+  GIT_TAG ${EP_VERSION}
+  # patch
+  # update
+  UPDATE_COMMAND ""
+  # configure
+  SOURCE_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}
+  CMAKE_ARGS ${EP_CMAKE_ARGS}
+  # build
+  BINARY_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}-build
+  # install
+  INSTALL_COMMAND ""
+  # test
+  )
+
+set(${PROJECT_NAME}_${EP_NAME}_DIR "${PROJECT_BINARY_DIR}/${EP_NAME}-build" CACHE INTERNAL "")

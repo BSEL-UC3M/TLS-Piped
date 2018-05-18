@@ -1,0 +1,48 @@
+# Author: Ali Uneri
+# Date: 2013-05-02
+
+set(EP_OPTION_NAME "USE_${EP_NAME}")
+set(EP_REQUIRED_PROJECTS Python)
+if(NOT ${EP_OPTION_NAME}_SOURCE_DIR)
+  set(EP_URL "git://github.com/HGGM-LIM/PythonTools.git")
+endif()
+
+cma_envvar(PYTHONPATH PREPEND "@SOURCE_DIR@")
+
+cma_end_definition()
+# -----------------------------------------------------------------------------
+
+set(EP_CMAKE_ARGS
+  -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+  -DPythonTools_BUILD_TESTING:BOOL=${${PROJECT_NAME}_BUILD_TESTING})
+
+if(${PROJECT_NAME}_BUILD_TESTING)
+  list(APPEND EP_CMAKE_ARGS -DPYTHON_EXECUTABLE:FILEPATH=${${PROJECT_NAME}_PYTHON_EXECUTABLE})
+endif()
+
+if(${EP_OPTION_NAME}_SOURCE_DIR)
+  set(EP_DOWNLOAD
+    DOWNLOAD_COMMAND ""
+    SOURCE_DIR ${${EP_OPTION_NAME}_SOURCE_DIR})
+  set(${PROJECT_NAME}_${EP_NAME}_SOURCE_DIR "${${EP_OPTION_NAME}_SOURCE_DIR}" CACHE INTERNAL "")
+else()
+  set(EP_DOWNLOAD
+    GIT_REPOSITORY ${EP_URL}
+    SOURCE_DIR ${PROJECT_BINARY_DIR}/${EP_NAME})
+endif()
+
+ExternalProject_Add(${EP_NAME}
+  DEPENDS ${EP_REQUIRED_PROJECTS}
+  # download
+  "${EP_DOWNLOAD}"
+  # patch
+  # update
+  UPDATE_COMMAND ""
+  # configure
+  CMAKE_ARGS ${EP_CMAKE_ARGS}
+  # build
+  BINARY_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}-build
+  # install
+  INSTALL_COMMAND ""
+  # test
+  )

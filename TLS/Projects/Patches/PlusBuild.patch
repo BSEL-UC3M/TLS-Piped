@@ -1,0 +1,130 @@
+Index: CMakeLists.txt
+===================================================================
+--- CMakeLists.txt	(revision 4518)
++++ CMakeLists.txt	(working copy)
+@@ -178,7 +178,7 @@
+ OPTION(PLUS_USE_THORLABS_VIDEO "Provide support for the ThorLabs Compact Spectrometers" OFF)
+ 
+ # Tracking hardware
+-OPTION(PLUS_USE_OPTITRACK "Provide support for the OptiTrack tracking system" OFF)
++OPTION(PLUS_USE_OPTITRACK "Provide support for the OptiTrack tracking system (need NaturalPoint API from TrackingTools Software)" OFF)
+ OPTION(PLUS_USE_OPTIMET_CONOPROBE "Provide support for the Optimet ConoProbe" OFF)
+ OPTION(PLUS_USE_POLARIS "Provide support for the NDI POLARIS and AURORA" OFF)
+ OPTION(PLUS_USE_CERTUS "Provide support for the NDI Certus" OFF)
+@@ -339,10 +339,7 @@
+ ENDIF()
+ 
+ IF ( PLUS_USE_OPTITRACK )
+-  FIND_PACKAGE (TRACKINGTOOLS)
+-  IF ( NOT TRACKINGTOOLS_FOUND)
+-    MESSAGE( FATAL_ERROR "This project requires the OptiTrack Tracking Tools SDK for OptiTrack tracking. One of the components is missing. Please verify configuration or turn off PLUS_USE_OPTITRACK.")
+-  ENDIF()
++  INCLUDE(External_BiiGOptitrack.cmake)
+ ENDIF() 
+ 
+ IF ( PLUS_USE_OPTIMET_CONOPROBE )
+@@ -479,6 +476,11 @@
+   INCLUDE(External_IntersonSDKCxx.cmake)
+ ENDIF()
+ 
++IF ( PLUS_BiiGOptitrack_DIR )
++  SET(BiiGOptitrack_DEPENDENCIES itk OpenIGTLink)
++  LIST(APPEND PlusLib_DEPENDENCIES BiiGOptitrack)
++ENDIF()
++
+ SET(PlusApp_DEPENDENCIES PlusLib)
+ SET(PlusModelCatalog_DEPENDENCIES PlusLib)
+ 
+Index: External_BiiGOptitrack.cmake
+===================================================================
+--- External_BiiGOptitrack.cmake	(nonexistent)
++++ External_BiiGOptitrack.cmake	(working copy)
+@@ -0,0 +1,73 @@
++#/*=========================================================================
++#Date: Ag 2015
++#Authors include:
++#- Eugenio Marinetto [*][ç] emarinetto@hggm.es
++#- Laura Sanz [*] lsanz@hggm.es
++#- Javier Pascau [*][ç] jpascau@hggm.es
++#[*] Laboratorio de Imagen Medica, Hospital Gregorio Maranon - http://image.hggm.es/
++#[ç] Departamento de Bioingeniería e Ingeniería Aeroespacial. Universidad Carlos III de Madrid
++#=========================================================================*/
++
++IF(BiiGOptitrack_DIR)
++
++  # OpenIGTLink has been built already
++  FIND_PACKAGE(BiiGOptitrack REQUIRED PATHS ${BiiGOptitrack_DIR} NO_DEFAULT_PATH)
++
++  MESSAGE(STATUS "Using BiiGOptitrack available at: ${BiiGOptitrack_DIR}")
++
++  # Copy libraries to PLUS_EXECUTABLE_OUTPUT_PATH
++  IF ( ${CMAKE_GENERATOR} MATCHES "Visual Studio" )
++    FILE(COPY
++      ${BiiGOptitrack_LIBRARY_DIRS}/
++      DESTINATION ${PLUS_EXECUTABLE_OUTPUT_PATH}/Release
++      FILES_MATCHING REGEX .*${CMAKE_SHARED_LIBRARY_SUFFIX}
++      )
++    FILE(COPY
++      ${BiiGOptitrack_LIBRARY_DIRS}/
++      DESTINATION ${PLUS_EXECUTABLE_OUTPUT_PATH}/Debug
++      FILES_MATCHING REGEX .*${CMAKE_SHARED_LIBRARY_SUFFIX}
++      )
++  ELSE()
++      FILE(COPY
++        ${BiiGOptitrack_LIBRARY_DIRS}/
++        DESTINATION ${PLUS_EXECUTABLE_OUTPUT_PATH}
++        FILES_MATCHING REGEX .*${CMAKE_SHARED_LIBRARY_SUFFIX}
++        )
++  ENDIF()
++  SET (PLUS_BiiGOptitrack_DIR "${BiiGOptitrack_DIR}" CACHE INTERNAL "Path to store BiiGOptitrack binaries")
++ELSE(BiiGOptitrack_DIR)
++
++  # NPTrackingTools has not been built yet, so download and build it as an external project
++  SET (PLUS_BiiGOptitrack_SRC_DIR "${CMAKE_BINARY_DIR}/BiiGOptitrack")
++  SET (PLUS_BiiGOptitrack_DIR "${CMAKE_BINARY_DIR}/BiiGOptitrack-bin" CACHE INTERNAL "Path to store BiiGOptitrack binaries")
++  ExternalProject_Add( BiiGOptitrack
++    SOURCE_DIR "${PLUS_BiiGOptitrack_SRC_DIR}"
++    BINARY_DIR "${PLUS_BiiGOptitrack_DIR}"
++    #--Download step--------------
++    GIT_REPOSITORY "${GIT_PROTOCOL}://github.com/HGGM-LIM/BiiGOptitrack"
++    GIT_TAG "PLUS-v2.0"
++    #--Configure step-------------
++    CMAKE_ARGS
++        ${ep_common_args}
++        -DLIBRARY_OUTPUT_PATH:STRING=${PLUS_EXECUTABLE_OUTPUT_PATH}
++        -DBUILD_SHARED_LIBS:BOOL=${PLUSBUILD_BUILD_SHARED_LIBS}
++        -DBUILD_EXAMPLES:BOOL=OFF
++        -DBUILD_TESTING:BOOL=OFF
++        -DBiiGOptitrack_USE_FAK_NPAPI:BOOL=OFF
++        -DUSE_CalibrationValidation:BOOL=OFF
++        -DUSE_IGTLinkPython:BOOL=OFF
++        -DUSE_Python:BOOL=OFF
++        -DUSE_OptitrackClient:BOOL=OFF
++        -DUSE_OptitrackServer:BOOL=OFF
++        -DUSE_TestOptitrack:BOOL=OFF
++        -DCMAKE_CXX_FLAGS:STRING=${ep_common_cxx_flags}
++        -DCMAKE_C_FLAGS:STRING=${ep_common_c_flags}
++        -DBiiGOptitrack_OpenIGTLink_EXTERNAL_DIR:PATH=${PLUS_OpenIGTLink_DIR}
++        -DBiiGOptitrack_ITK_EXTERNAL_DIR:PATH=${ITK_DIR}
++    #--Build step-----------------
++    #--Install step-----------------
++    INSTALL_COMMAND ""
++    DEPENDS ${BiiGOptitrack_DEPENDENCIES}
++    )
++
++ENDIF(BiiGOptitrack_DIR)
+Index: External_PlusLib.cmake
+===================================================================
+--- External_PlusLib.cmake	(revision 4518)
++++ External_PlusLib.cmake	(working copy)
+@@ -54,9 +54,7 @@
+ ENDIF() 
+ IF ( PLUS_USE_OPTITRACK )
+   SET(PLUSBUILD_ADDITIONAL_SDK_ARGS ${PLUSBUILD_ADDITIONAL_SDK_ARGS}
+-    -DTRACKINGTOOLS_INCLUDE_DIR:PATH=${TRACKINGTOOLS_INCLUDE_DIR}
+-    -DTRACKINGTOOLS_BINARY_DIR:PATH=${TRACKINGTOOLS_BINARY_DIR}
+-    -DTRACKINGTOOLS_LIBRARY:PATH=${TRACKINGTOOLS_LIBRARY}
++    -DBiiGOptitrack_DIR:PATH=${PLUS_BiiGOptitrack_DIR}
+     )
+ ENDIF() 
+ IF (PLUS_USE_ICCAPTURING_VIDEO)

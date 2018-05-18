@@ -1,0 +1,56 @@
+# Author: Ali Uneri
+# Date: 2014-12-01
+
+set(EP_OPTION_NAME "USE_${EP_NAME}")
+set(EP_REQUIRED_PROJECTS CTK DCMTK Doxygen GDCM Git ITK Qt VTK)
+set(EP_URL "git://github.com/MITK/MITK.git")
+set(EP_PATCH "${CMAKE_CURRENT_LIST_DIR}/${EP_NAME}.patch")
+set(EP_OPTION_DESCRIPTION "The Medical Imaging Interaction Toolkit")
+
+cma_envvar(@LIBRARYPATH@ PREPEND "@BINARY_DIR@/ep/@LIBDIR@")
+
+if(WIN32)
+  cma_envvar(MITK_EXECUTABLE "@BINARY_DIR@/${EP_NAME}-build/bin/@INTDIR@/MitkWorkbench.exe")
+elseif(APPLE)
+  cma_envvar(MITK_EXECUTABLE "@BINARY_DIR@/${EP_NAME}-build/bin/MitkWorkbench.app/Contents/MacOS/MitkWorkbench")
+elseif(UNIX)
+  cma_envvar(MITK_EXECUTABLE "@BINARY_DIR@/${EP_NAME}-build/bin/MitkWorkbench")
+else()
+  message(FATAL_ERROR "Platform is not supported.")
+endif()
+
+cma_end_definition()
+# -----------------------------------------------------------------------------
+
+set(EP_CMAKE_ARGS
+  -DADDITIONAL_C_FLAGS:STRING=${CMAKE_C_FLAGS}
+  -DADDITIONAL_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS}
+  -DBUILD_TESTING:BOOL=OFF
+  -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+  -DDESIRED_QT_VERSION:STRING=${${PROJECT_NAME}_QT_VERSION_MAJOR}
+  -DDOXYGEN_EXECUTABLE:FILEPATH=${${PROJECT_NAME}_DOXYGEN_EXECUTABLE}
+  -DEXTERNAL_CTK_DIR:PATH=${${PROJECT_NAME}_CTK_DIR}
+  -DEXTERNAL_DCMTK_DIR:PATH=${${PROJECT_NAME}_DCMTK_DIR}
+  -DEXTERNAL_GDCM_DIR:PATH=${${PROJECT_NAME}_GDCM_DIR}
+  -DEXTERNAL_ITK_DIR:PATH=${${PROJECT_NAME}_ITK_DIR}
+  -DEXTERNAL_VTK_DIR:PATH=${${PROJECT_NAME}_VTK_DIR}
+  -DMITK_BUILD_CONFIGURATION:STRING=WorkbenchRelease
+  -DMITK_VTK_DEBUG_LEAKS:BOOL=${USE_VTK_DEBUG_LEAKS})
+
+ExternalProject_Add(${EP_NAME}
+  DEPENDS ${EP_REQUIRED_PROJECTS}
+  # download
+  GIT_REPOSITORY ${EP_URL}
+  GIT_TAG v2015.05.2
+  # patch
+  # update
+  UPDATE_COMMAND ""
+  # configure
+  SOURCE_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}
+  CMAKE_ARGS ${EP_CMAKE_ARGS}
+  # build
+  BINARY_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}-build
+  # install
+  INSTALL_COMMAND ""
+  # test
+  )

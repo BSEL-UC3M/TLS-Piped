@@ -1,0 +1,113 @@
+# Author: Ali Uneri
+# Date: 2014-12-01
+
+set(EP_OPTION_NAME "USE_${EP_NAME}")
+set(EP_REQUIRED_PROJECTS Git Qt)
+set(EP_URL "git://github.com/commontk/CTK.git")
+set(EP_PATCH "${CMAKE_CURRENT_LIST_DIR}/Patches/${EP_NAME}.patch")
+set(EP_OPTION_DESCRIPTION "The Common Toolkit")
+
+cma_list(APPEND EP_REQUIRED_PROJECTS DCMTK IF USE_DCMTK)
+cma_list(APPEND EP_REQUIRED_PROJECTS ITK IF USE_ITK)
+cma_list(APPEND EP_REQUIRED_PROJECTS Python IF USE_Python)
+cma_list(APPEND EP_REQUIRED_PROJECTS VTK IF USE_VTK)
+
+cma_envvar(@LIBRARYPATH@ PREPEND
+  "@BINARY_DIR@/CTK-build/bin/@INTDIR@"
+  "@BINARY_DIR@/qRestAPI-build/bin/@INTDIR@"
+  "@BINARY_DIR@/QtTesting-build/@INTDIR@")
+cma_envvar(QT_PLUGIN_PATH APPEND "@BINARY_DIR@/CTK-build/bin")
+
+if(USE_Python)
+  cma_envvar(@LIBRARYPATH@ PREPEND "@BINARY_DIR@/PythonQt-build/@INTDIR@")
+  cma_envvar(PYTHONPATH PREPEND "@BINARY_DIR@/CTK-build/bin/Python")
+endif()
+
+cma_end_definition()
+# -----------------------------------------------------------------------------
+
+if(USE_Slicer)
+  if(${PROJECT_NAME}_Slicer_VERSION VERSION_EQUAL "4.4")
+    set(EP_VERSION "1c97e5426f898bc7d074e6122992d0dd12bab56b")
+  elseif(${PROJECT_NAME}_Slicer_VERSION VERSION_EQUAL "4.5")
+    set(EP_VERSION "5f581323b6526caf5ff293d9a810a3c9f68343d9")
+  else()
+    message(FATAL_ERROR "Slicer version ${${PROJECT_NAME}_Slicer_VERSION} is not supported")
+  endif()
+else()
+  set(EP_VERSION "5bc0708226defedd2ba415af3459280c74c43c45")
+endif()
+
+set(EP_CMAKE_ARGS
+  -DADDITIONAL_C_FLAGS:STRING=${CMAKE_C_FLAGS}
+  -DADDITIONAL_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS}
+  -DBUILD_TESTING:BOOL=OFF
+  -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+  -DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS}
+  -DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS}
+  -DCTK_ENABLE_Python_Wrapping:BOOL=${USE_Python}
+  -DCTK_LIB_PluginFramework:BOOL=${USE_MITK}
+  -DCTK_LIB_Widgets:BOOL=ON
+  -DCTK_LIB_XNAT/Core:BOOL=${USE_MITK}
+  -DCTK_PLUGIN_org.commontk.eventbus:BOOL=OFF
+  -DCTK_USE_QTTESTING:BOOL=${USE_Slicer}
+  -DGIT_EXECUTABLE:FILEPATH=${${PROJECT_NAME}_GIT_EXECUTABLE}
+  -DQT_QMAKE_EXECUTABLE:FILEPATH=${${PROJECT_NAME}_QT_QMAKE_EXECUTABLE})
+
+if(USE_DCMTK)
+  list(APPEND EP_CMAKE_ARGS
+    -DCTK_APP_ctkDICOM:BOOL=ON
+    -DCTK_LIB_DICOM/Core:BOOL=ON
+    -DCTK_LIB_DICOM/Widgets:BOOL=ON
+    -DDCMTK_DIR:PATH=${${PROJECT_NAME}_DCMTK_DIR})
+endif()
+if(USE_ITK)
+  list(APPEND EP_CMAKE_ARGS
+    -DCTK_LIB_ImageProcessing/ITK/Core:BOOL=${USE_Slicer}
+    -DITK_DIR:PATH=${${PROJECT_NAME}_ITK_DIR})
+endif()
+if(USE_MITK OR USE_Python OR USE_Slicer)
+  list(APPEND EP_CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=ON)
+else()
+  list(APPEND EP_CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF)
+endif()
+if(USE_Python)
+  list(APPEND EP_CMAKE_ARGS
+    -DCTK_LIB_Scripting/Python/Core:BOOL=ON
+    -DCTK_LIB_Scripting/Python/Core_PYTHONQT_WRAP_QTCORE:BOOL=ON
+    -DCTK_LIB_Scripting/Python/Core_PYTHONQT_WRAP_QTGUI:BOOL=ON
+    -DCTK_LIB_Scripting/Python/Core_PYTHONQT_WRAP_QTNETWORK:BOOL=ON
+    -DCTK_LIB_Scripting/Python/Core_PYTHONQT_WRAP_QTUITOOLS:BOOL=ON
+    -DCTK_LIB_Scripting/Python/Core_PYTHONQT_WRAP_QTWEBKIT:BOOL=ON
+    -DCTK_LIB_Scripting/Python/Widgets:BOOL=ON
+    -DPYTHON_EXECUTABLE:PATH=${${PROJECT_NAME}_PYTHON_EXECUTABLE}
+    -DPYTHON_INCLUDE_DIR:PATH=${${PROJECT_NAME}_PYTHON_INCLUDE_DIR}
+    -DPYTHON_LIBRARY:FILEPATH=${${PROJECT_NAME}_PYTHON_LIBRARY})
+endif()
+if(USE_VTK)
+  list(APPEND EP_CMAKE_ARGS
+    -DCTK_LIB_Scripting/Python/Core_PYTHONQT_USE_VTK:BOOL=${USE_Slicer}
+    -DCTK_LIB_Visualization/VTK/Widgets:BOOL=${USE_Slicer}
+    -DCTK_LIB_Visualization/VTK/Widgets_USE_TRANSFER_FUNCTION_CHARTS:BOOL=${USE_Slicer}
+    -DVTK_DIR:PATH=${${PROJECT_NAME}_VTK_DIR})
+endif()
+
+ExternalProject_Add(${EP_NAME}
+  DEPENDS ${EP_REQUIRED_PROJECTS}
+  # download
+  GIT_REPOSITORY ${EP_URL}
+  GIT_TAG ${EP_VERSION}
+  # patch
+  # update
+  UPDATE_COMMAND ""
+  # configure
+  SOURCE_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}
+  CMAKE_CACHE_ARGS ${EP_CMAKE_ARGS}
+  # build
+  BINARY_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}-build
+  # install
+  INSTALL_COMMAND ""
+  # test
+  )
+
+set(${PROJECT_NAME}_${EP_NAME}_DIR "${PROJECT_BINARY_DIR}/${EP_NAME}-build" CACHE INTERNAL "")

@@ -1,0 +1,255 @@
+diff --git a/Applications/SlicerApp/Main.cxx b/Applications/SlicerApp/Main.cxx
+index 05d17fe..085ad84 100644
+--- a/Applications/SlicerApp/Main.cxx
++++ b/Applications/SlicerApp/Main.cxx
+@@ -19,6 +19,7 @@
+ ==============================================================================*/
+ 
+ // Qt includes
++#include <QBitmap>
+ #include <QList>
+ #include <QSettings>
+ #include <QSplashScreen>
+@@ -150,8 +151,10 @@ int SlicerAppMain(int argc, char* argv[])
+   QScopedPointer<QSplashScreen> splashScreen;
+   if (showSplashScreen)
+     {
+-    QPixmap pixmap(":/SplashScreen.png");
++    // set splash screen with a transparency mask
++    QPixmap pixmap(BiiGTK_PROJECT_SPLASH);
+     splashScreen.reset(new QSplashScreen(pixmap));
++    splashScreen.data()->setMask(pixmap.mask());
+     splashMessage(splashScreen, "Initializing...");
+     splashScreen->show();
+     }
+@@ -202,7 +205,7 @@ int SlicerAppMain(int argc, char* argv[])
+   if (window)
+     {
+     window->setHomeModuleCurrent();
+-    window->show();
++    window->hide();
+     }
+ 
+   if (splashScreen && window)
+diff --git a/Base/QTCLI/qSlicerCLIModule.cxx b/Base/QTCLI/qSlicerCLIModule.cxx
+index 90d8cf3..0baaa50 100644
+--- a/Base/QTCLI/qSlicerCLIModule.cxx
++++ b/Base/QTCLI/qSlicerCLIModule.cxx
+@@ -175,6 +175,12 @@ void qSlicerCLIModule::setXmlModuleDescription(const QString& xmlModuleDescripti
+     QString::fromStdString(desc.GetDescription())).arg(
+     QString::fromStdString(desc.GetDocumentationURL()));
+ 
++  // hide collapsible help widget if empty
++  if (desc.GetDescription().empty() &&
++      desc.GetDocumentationURL().empty()) {
++    d->Help = QString();
++  }
++
+   // Set module type
+   desc.SetType(this->moduleType().toStdString());
+ 
+diff --git a/Base/QTCore/qSlicerCoreApplication.cxx b/Base/QTCore/qSlicerCoreApplication.cxx
+index 04d9d90..e6fd364 100644
+--- a/Base/QTCore/qSlicerCoreApplication.cxx
++++ b/Base/QTCore/qSlicerCoreApplication.cxx
+@@ -191,8 +191,8 @@ void qSlicerCoreApplicationPrivate::init()
+     QMessageBox::information(0, "Attach process", msg.arg(QCoreApplication::applicationPid()));
+     }
+ 
+-  QCoreApplication::setOrganizationDomain(Slicer_ORGANIZATION_DOMAIN);
+-  QCoreApplication::setOrganizationName(Slicer_ORGANIZATION_NAME);
++  QCoreApplication::setOrganizationDomain("image.hggm.es");
++  QCoreApplication::setOrganizationName("BiiG-UC3M");
+ 
+   QSettings::setDefaultFormat(QSettings::IniFormat);
+ 
+diff --git a/CMake/MacOSXBundleInfo.plist.in b/CMake/MacOSXBundleInfo.plist.in
+index 6ab9a0b..e477d5a 100644
+--- a/CMake/MacOSXBundleInfo.plist.in
++++ b/CMake/MacOSXBundleInfo.plist.in
+@@ -5,7 +5,7 @@
+         <key>NSPrincipalClass</key>
+         <string>NSApplication</string>
+         <key>NSHighResolutionCapable</key>
+-        <string>True</string>
++        <string>False</string>
+         <key>CFBundleDevelopmentRegion</key>
+         <string>English</string>
+         <key>CFBundleExecutable</key>
+diff --git a/CMake/SlicerMacroBuildApplication.cmake b/CMake/SlicerMacroBuildApplication.cmake
+index e7a3710..f7bf427 100644
+--- a/CMake/SlicerMacroBuildApplication.cmake
++++ b/CMake/SlicerMacroBuildApplication.cmake
+@@ -434,7 +434,7 @@ macro(slicerMacroBuildApplication)
+     endif()
+   endif()
+ 
+-  if(WIN32)
++  if(OFF)
+     if(Slicer_USE_PYTHONQT)
+       # HACK - See http://www.na-mic.org/Bug/view.php?id=1180
+       get_filename_component(_python_library_name_we ${PYTHON_LIBRARY} NAME_WE)
+diff --git a/CMake/vtkSlicerConfigure.h.in b/CMake/vtkSlicerConfigure.h.in
+index 83121d5..9ae0e57 100644
+--- a/CMake/vtkSlicerConfigure.h.in
++++ b/CMake/vtkSlicerConfigure.h.in
+@@ -117,4 +117,6 @@
+ #define Slicer_QM_OUTPUT_DIRS "@Slicer_QM_OUTPUT_DIRS@"
+ #define Slicer_LANGUAGES "@Slicer_LANGUAGES@"
+ 
++#define BiiGTK_PROJECT_SPLASH "@BiiGTK_PROJECT_SPLASH@"
++
+ #endif //__vtkSlicerConfigure_h
+diff --git a/Libs/MRML/Core/vtkMRMLModelStorageNode.cxx b/Libs/MRML/Core/vtkMRMLModelStorageNode.cxx
+index 5f5b70b..3139d67 100644
+--- a/Libs/MRML/Core/vtkMRMLModelStorageNode.cxx
++++ b/Libs/MRML/Core/vtkMRMLModelStorageNode.cxx
+@@ -453,6 +453,6 @@ void vtkMRMLModelStorageNode::InitializeSupportedWriteFileTypes()
+ //----------------------------------------------------------------------------
+ const char* vtkMRMLModelStorageNode::GetDefaultWriteFileExtension()
+ {
+-  return "vtk";
++  return "vtp";
+ }
+ 
+diff --git a/Libs/MRML/Core/vtkMRMLVolumeArchetypeStorageNode.cxx b/Libs/MRML/Core/vtkMRMLVolumeArchetypeStorageNode.cxx
+index 0870a65..861020b 100644
+--- a/Libs/MRML/Core/vtkMRMLVolumeArchetypeStorageNode.cxx
++++ b/Libs/MRML/Core/vtkMRMLVolumeArchetypeStorageNode.cxx
+@@ -55,6 +55,7 @@ vtkMRMLVolumeArchetypeStorageNode::vtkMRMLVolumeArchetypeStorageNode()
+   this->CenterImage = 0;
+   this->SingleFile  = 0;
+   this->UseOrientationFromFile = 1;
++  this->UseCompressionOff();
+ }
+ 
+ //----------------------------------------------------------------------------
+@@ -625,7 +626,7 @@ void vtkMRMLVolumeArchetypeStorageNode::InitializeSupportedWriteFileTypes()
+ //----------------------------------------------------------------------------
+ const char* vtkMRMLVolumeArchetypeStorageNode::GetDefaultWriteFileExtension()
+ {
+-  return "nrrd";
++  return "mhd";
+ }
+ 
+ //----------------------------------------------------------------------------
+diff --git a/Modules/Loadable/CMakeLists.txt b/Modules/Loadable/CMakeLists.txt
+index 7119cec..65c7e27 100644
+--- a/Modules/Loadable/CMakeLists.txt
++++ b/Modules/Loadable/CMakeLists.txt
+@@ -24,7 +24,7 @@ set(qtmodules
+   Volumes
+   VolumeRendering # Volume Rendering depends of Volumes
+   )
+-if(Slicer_BUILD_CLI_SUPPORT)
++if(Slicer_BUILD_CLI_SUPPORT AND Slicer_BUILD_CLI)
+   list(APPEND qtmodules
+     CropVolume
+     )
+diff --git a/SuperBuild.cmake b/SuperBuild.cmake
+index 6159b33..e3dec0d 100644
+--- a/SuperBuild.cmake
++++ b/SuperBuild.cmake
+@@ -298,7 +298,7 @@ Slicer_Remote_Add(LandmarkRegistration
+   GIT_REPOSITORY "${git_protocol}://github.com/pieper/LandmarkRegistration"
+   GIT_TAG "13d7b32ffc0be030256fd3d1b010a0efc18e3bff"
+   OPTION_NAME Slicer_BUILD_LandmarkRegistration
+-  OPTION_DEPENDS "Slicer_BUILD_CompareVolumes;Slicer_USE_PYTHONQT"
++  OPTION_DEPENDS "Slicer_BUILD_CompareVolumes;Slicer_USE_PYTHONQT;Slicer_USE_SimpleITK"
+   LABELS REMOTE_MODULE
+   )
+ list_conditional_append(Slicer_BUILD_LandmarkRegistration Slicer_REMOTE_DEPENDENCIES LandmarkRegistration)
+@@ -360,6 +360,8 @@ ExternalProject_Add(${proj}
+     -DSlicer_APPLICATIONS_DIR:PATH=${Slicer_APPLICATIONS_DIR}
+     -DSlicer_EXTENSION_SOURCE_DIRS:STRING=${Slicer_EXTENSION_SOURCE_DIRS}
+     ${EXTERNAL_PROJECT_OPTIONAL_ARGS}
++    -DSlicer_BUILD_WIN32_CONSOLE:BOOL=ON
++    -DBiiGTK_PROJECT_SPLASH:FILEPATH=${BiiGTK_PROJECT_SPLASH}
+   INSTALL_COMMAND ""
+   )
+ 
+diff --git a/SuperBuild/External_CTK.cmake b/SuperBuild/External_CTK.cmake
+index b30b59d..3b2a48c 100644
+--- a/SuperBuild/External_CTK.cmake
++++ b/SuperBuild/External_CTK.cmake
+@@ -14,13 +14,12 @@ endif()
+ ExternalProject_Include_Dependencies(${proj} PROJECT_VAR proj DEPENDS_VAR ${proj}_DEPENDENCIES)
+ 
+ if(${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
+-  message(FATAL_ERROR "Enabling ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj} is not supported !")
++  find_package(CTK 0.1.0 REQUIRED NO_MODULE)
+ endif()
+ 
+ # Sanity checks
+ if(DEFINED CTK_DIR AND NOT EXISTS ${CTK_DIR})
+-  unset(CTK_DIR CACHE)
+-  find_package(CTK 0.1.0 REQUIRED NO_MODULE)
++  message(FATAL_ERROR "CTK_DIR variable is defined but corresponds to nonexistent directory")
+ endif()
+ 
+ if(NOT DEFINED CTK_DIR AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
+diff --git a/SuperBuild/External_DCMTK.cmake b/SuperBuild/External_DCMTK.cmake
+index 7bcdd46..6641238 100644
+--- a/SuperBuild/External_DCMTK.cmake
++++ b/SuperBuild/External_DCMTK.cmake
+@@ -8,8 +8,7 @@ set(${proj}_DEPENDENCIES "zlib")
+ ExternalProject_Include_Dependencies(${proj} PROJECT_VAR proj DEPENDS_VAR ${proj}_DEPENDENCIES)
+ 
+ if(${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
+-  unset(DCMTK_DIR CACHE)
+-  find_package(DCMTK REQUIRED)
++  find_package(DCMTK REQUIRED CONFIG)
+ endif()
+ 
+ # Sanity checks
+diff --git a/SuperBuild/External_ITKv4.cmake b/SuperBuild/External_ITKv4.cmake
+index b7d94f9..3c4d1cf 100644
+--- a/SuperBuild/External_ITKv4.cmake
++++ b/SuperBuild/External_ITKv4.cmake
+@@ -14,7 +14,6 @@ endif()
+ ExternalProject_Include_Dependencies(${proj} PROJECT_VAR proj DEPENDS_VAR ${proj}_DEPENDENCIES)
+ 
+ if(${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
+-  unset(ITK_DIR CACHE)
+   find_package(ITK 4.6 REQUIRED NO_MODULE)
+ endif()
+ 
+diff --git a/SuperBuild/External_VTKv6.cmake b/SuperBuild/External_VTKv6.cmake
+index 49879fc..d34cfc8 100644
+--- a/SuperBuild/External_VTKv6.cmake
++++ b/SuperBuild/External_VTKv6.cmake
+@@ -11,8 +11,6 @@ endif()
+ ExternalProject_Include_Dependencies(${proj} PROJECT_VAR proj DEPENDS_VAR ${proj}_DEPENDENCIES)
+ 
+ if(${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
+-  unset(VTK_DIR CACHE)
+-  unset(VTK_SOURCE_DIR CACHE)
+   find_package(VTK REQUIRED NO_MODULE)
+ endif()
+ 
+diff --git a/SuperBuild/External_python.cmake b/SuperBuild/External_python.cmake
+index 9170a77..f1efecc 100644
+--- a/SuperBuild/External_python.cmake
++++ b/SuperBuild/External_python.cmake
+@@ -21,9 +21,6 @@ endif()
+ ExternalProject_Include_Dependencies(${proj} PROJECT_VAR proj DEPENDS_VAR ${proj}_DEPENDENCIES)
+ 
+ if(${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
+-  unset(PYTHON_INCLUDE_DIR CACHE)
+-  unset(PYTHON_LIBRARY CACHE)
+-  unset(PYTHON_EXECUTABLE CACHE)
+   find_package(PythonLibs REQUIRED)
+   find_package(PythonInterp REQUIRED)
+   set(PYTHON_INCLUDE_DIR ${PYTHON_INCLUDE_DIRS})
+diff --git a/SuperBuild/External_zlib.cmake b/SuperBuild/External_zlib.cmake
+index 2155e58..bea6369 100644
+--- a/SuperBuild/External_zlib.cmake
++++ b/SuperBuild/External_zlib.cmake
+@@ -8,7 +8,6 @@ set(${proj}_DEPENDENCIES "")
+ ExternalProject_Include_Dependencies(${proj} PROJECT_VAR proj DEPENDS_VAR ${proj}_DEPENDENCIES)
+ 
+ if(${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
+-  unset(zlib_DIR CACHE)
+   find_package(ZLIB REQUIRED)
+   set(ZLIB_INCLUDE_DIR ${ZLIB_INCLUDE_DIRS})
+   set(ZLIB_LIBRARY ${ZLIB_LIBRARIES})

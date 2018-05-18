@@ -1,0 +1,18 @@
+# Author: Ali Uneri
+# Date: 2013-12-10
+
+set(EP_OPTION_NAME "USE_${EP_NAME}")
+
+cma_end_definition()
+# -----------------------------------------------------------------------------
+
+find_package(Hg REQUIRED)
+
+ExternalProject_Add(${EP_NAME}
+  DOWNLOAD_COMMAND ""
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND ""
+  INSTALL_COMMAND "")
+
+set(HG_EXECUTABLE "${HG_EXECUTABLE}" CACHE INTERNAL "")
+set(${PROJECT_NAME}_HG_EXECUTABLE "${HG_EXECUTABLE}" CACHE INTERNAL "")

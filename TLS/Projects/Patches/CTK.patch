@@ -1,0 +1,79 @@
+diff --git a/CMake/ctkMacroSetPaths.cmake b/CMake/ctkMacroSetPaths.cmake
+index d5b907d..970a4a6 100644
+--- a/CMake/ctkMacroSetPaths.cmake
++++ b/CMake/ctkMacroSetPaths.cmake
+@@ -28,7 +28,9 @@ macro(ctkMacroSetPaths PATH_LIST)
+     if(WIN32)
+       set(ENV{PATH} "${p};$ENV{PATH}")
+     elseif(APPLE)
+-      set(ENV{DYLD_LIBRARY_PATH} "${p}:$ENV{DYLD_LIBRARY_PATH}")
++      if(NOT p MATCHES "^/opt/local/lib")
++        set(ENV{DYLD_LIBRARY_PATH} "${p}:$ENV{DYLD_LIBRARY_PATH}")
++      endif()
+     else()
+       set(ENV{LD_LIBRARY_PATH} "${p}:$ENV{LD_LIBRARY_PATH}")
+     endif()
+diff --git a/CMake/ctkMacroWrapPythonQt.cmake b/CMake/ctkMacroWrapPythonQt.cmake
+index 5f03616..6585b6b 100644
+--- a/CMake/ctkMacroWrapPythonQt.cmake
++++ b/CMake/ctkMacroWrapPythonQt.cmake
+@@ -118,7 +118,7 @@ macro(ctkMacroWrapPythonQt WRAPPING_NAMESPACE TARGET SRCS_LIST_NAME SOURCES IS_W
+         set(TMP_INPUT ${CMAKE_CURRENT_SOURCE_DIR}/${FILE})
+       endif()
+ 
+-      list(APPEND SOURCES_TO_WRAP ${TMP_INPUT})
++      list(APPEND SOURCES_TO_WRAP ${FILE})
+     endif()
+   endforeach()
+ 
+@@ -160,6 +160,7 @@ macro(ctkMacroWrapPythonQt WRAPPING_NAMESPACE TARGET SRCS_LIST_NAME SOURCES IS_W
+       --namespace=${WRAPPING_NAMESPACE}
+       --output-dir=${CMAKE_CURRENT_BINARY_DIR}/${wrap_int_dir} ${extra_args}
+       ${SOURCES_TO_WRAP}
++    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+     COMMENT "PythonQt Wrapping - Generating ${wrapper_init_cpp_filename}"
+     VERBATIM
+     )
+diff --git a/CMake/ctkWrapPythonQt.py b/CMake/ctkWrapPythonQt.py
+index 422ec20..d94071f 100644
+--- a/CMake/ctkWrapPythonQt.py
++++ b/CMake/ctkWrapPythonQt.py
+@@ -74,7 +74,7 @@ def ctk_wrap_pythonqt(target, namespace, output_dir, input_files, extra_verbose)
+         parentClassName = None
+ 
+         # Read input files
+-        with open(input_file) as f:
++        with open(os.path.join(os.getcwd(), input_file)) as f:
+             content = f.read()
+             
+             # Skip wrapping if file do NOT contain Q_OBJECT
+diff --git a/Libs/Widgets/ctkPathLineEdit.cpp b/Libs/Widgets/ctkPathLineEdit.cpp
+index 586ad41..605552b 100644
+--- a/Libs/Widgets/ctkPathLineEdit.cpp
++++ b/Libs/Widgets/ctkPathLineEdit.cpp
+@@ -95,7 +95,7 @@ ctkPathLineEditPrivate::ctkPathLineEditPrivate(ctkPathLineEdit& object)
+   , ComboBox(0)
+   , BrowseButton(0)
+   , MinimumContentsLength(0)
+-  , SizeAdjustPolicy(ctkPathLineEdit::AdjustToContentsOnFirstShow)
++  , SizeAdjustPolicy(ctkPathLineEdit::AdjustToMinimumContentsLength)
+   , Filters(QDir::AllEntries|QDir::NoDotAndDotDot|QDir::Readable)
+   , HasValidInput(false)
+ {
+@@ -464,7 +464,7 @@ void ctkPathLineEdit::browse()
+     }
+   if (path.isEmpty())
+     {
+-    return;
++    //return;
+     }
+   this->setCurrentPath(path);
+ }
+@@ -577,6 +577,7 @@ QString ctkPathLineEdit::currentPath()const
+ void ctkPathLineEdit::setCurrentPath(const QString& path)
+ {
+   Q_D(ctkPathLineEdit);
++  d->LineEdit->clear();
+   d->LineEdit->setText(path);
+ }
+ 

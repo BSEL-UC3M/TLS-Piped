@@ -1,0 +1,452 @@
+Index: src/DataCollection/CMakeLists.txt
+===================================================================
+--- src/DataCollection/CMakeLists.txt	(revision 4516)
++++ src/DataCollection/CMakeLists.txt	(working copy)
+@@ -106,39 +106,35 @@
+ # --------------------------------------------------------------------------
+ # OptiTrack support
+ IF (PLUS_USE_OPTITRACK)
++  IF (WIN32)
++
++    # PlusLib Files
+     SET (DataCollection_SRCS ${DataCollection_SRCS} 
+       OptiTrack/vtkOptiTrackTracker.cxx
+       )
+         
+-    SET (DataCollection_INCLUDE_DIRS ${DataCollection_INCLUDE_DIRS} ${TRACKINGTOOLS_INCLUDE_DIR} CACHE INTERNAL "" FORCE )
+-  
+-    IF (WIN32)  
+       SET (DataCollection_HDRS ${DataCollection_HDRS}
+         OptiTrack/vtkOptiTrackTracker.h
+         )
+-    ENDIF (WIN32)
+     
+     SET (DataCollection_INCLUDE_DIRS ${DataCollection_INCLUDE_DIRS}
+          ${CMAKE_CURRENT_SOURCE_DIR}/OptiTrack 
+          CACHE INTERNAL "" FORCE)
+       
+-    IF( CMAKE_SIZEOF_VOID_P EQUAL 8 )
+-    # 64-bit
+-		SET (DataCollection_LIBS ${DataCollection_LIBS}
+-		${TRACKINGTOOLS_64_BIT_LIBRARY}
+-		)
+-		SET ( External_Libraries_Install ${External_Libraries_Install}
+-		${TRACKINGTOOLS_BINARY_DIR}/NPTrackingToolsx64${CMAKE_SHARED_LIBRARY_SUFFIX}
+-		)
+-	ELSE()
+-    # 32-bit
+-		SET (DataCollection_LIBS ${DataCollection_LIBS}
+-		${TRACKINGTOOLS_32_BIT_LIBRARY}
+-		)
+-		SET ( External_Libraries_Install ${External_Libraries_Install}
+-		${TRACKINGTOOLS_BINARY_DIR}/NPTrackingTools${CMAKE_SHARED_LIBRARY_SUFFIX}
+-		)
+-  ENDIF()   
++    # Find BiiGOptitrackControl Library
++    find_package (BiiGOptitrackControl REQUIRED)
++    set(External_Libraries_Install ${External_Libraries_Install} ${BiiGOptitrackControl_INSTALL_DIR}/bin/BiiGOptitrackControl${CMAKE_SHARED_LIBRARY_SUFFIX})
++    set(External_Libraries_Install ${External_Libraries_Install} ${BiiGOptitrackControl_INSTALL_DIR}/lib/BiiGOptitrackControl${CMAKE_STATIC_LIBRARY_SUFFIX})
++    set(DataCollection_INCLUDE_DIRS ${DataCollection_INCLUDE_DIRS} ${BiiGOptitrackControl_INSTALL_DIR}/inc CACHE INTERNAL "" FORCE )
++
++    # Find NPTrackingTools Library
++    find_package(NPTrackingTools REQUIRED)
++    set(External_Libraries_Install ${External_Libraries_Install} ${NPTrackingTools_INSTALL_DIR}/bin/${NPTrackingTools_LIBRARY}${CMAKE_SHARED_LIBRARY_SUFFIX})
++    set(External_Libraries_Install ${External_Libraries_Install} ${NPTrackingTools_INSTALL_DIR}/lib/${NPTrackingTools_LIBRARY}${CMAKE_STATIC_LIBRARY_SUFFIX})
++    set(DataCollection_INCLUDE_DIRS ${DataCollection_INCLUDE_DIRS} ${NPTrackingTools_INCLUDE_DIR} CACHE INTERNAL "" FORCE )
++
++    set(DataCollection_LIBS ${DataCollection_LIBS} BiiGOptitrackControl ${NPTrackingTools_LIBRARY})
++  ENDIF (WIN32)
+ ENDIF (PLUS_USE_OPTITRACK)
+ 
+ # --------------------------------------------------------------------------
+Index: src/DataCollection/OptiTrack/vtkOptiTrackTracker.cxx
+===================================================================
+--- src/DataCollection/OptiTrack/vtkOptiTrackTracker.cxx	(revision 4516)
++++ src/DataCollection/OptiTrack/vtkOptiTrackTracker.cxx	(working copy)
+@@ -4,18 +4,6 @@
+ See License.txt for details.
+ =========================================================Plus=header=end*/
+ 
+-/*=========================================================================
+-Date: July 2015
+-Authors include:
+-- Mikael Brudfors* 
+-- Laura Sanz*
+-- Veronica García*
+-- Eugenio Marinetto*
+-- David García
+-- Javier Pascau*
+-*Laboratorio de Imagen Medica, Hospital Gregorio Maranon - http://image.hggm.es/
+-=========================================================================*/  
+-
+ #include "PlusConfigure.h"
+ #include "vtkOptiTrackTracker.h"
+ 
+@@ -32,7 +20,6 @@
+ #include <math.h>
+ #include <sstream>
+ 
+-#include "NPTrackingTools.h"
+ 
+ vtkStandardNewMacro(vtkOptiTrackTracker);
+ 
+@@ -39,19 +26,35 @@
+ //-----------------------------------------------------------------------
+ vtkOptiTrackTracker::vtkOptiTrackTracker()
+ { 
+-  this->RequirePortNameInDeviceSetConfiguration = true;
++  this->RequirePortNameInDeviceSetConfiguration = false;
+ 
+-  this->AcquisitionRate = 100;
+-
+   // No callback function provided by the device, so the data capture thread will be used to poll the hardware and add new items to the buffer
+   this->StartThreadForInternalUpdates=true; 
+  
++  // Optitrack tracker
++  this->OptiTrackTracker = Optitrack::OptitrackTracker::New();
++  this->Exposition = 0;
++  this->Threshold = 0;
++  this->Illumination = 0;
++  this->CalibrationFile = "";
++
++  // Before the connection, Optitrack needs a calibration file to know the relative position between cameras
++  this->OptiTrackTracker->SetCalibrationFile(this->CalibrationFile);
++
++  //Empty Configuration File vector
++  this->OptiTrackToolsConfFiles.clear();
+ }
+ 
+ //-------------------------------------------------------------------------
+ vtkOptiTrackTracker::~vtkOptiTrackTracker() 
+ {
++
++  if (this->OptiTrackTracker.IsNotNull())
++  {
++    this->OptiTrackTracker->Close();
++    this->OptiTrackTracker = NULL;
+ }
++}
+ 
+ //-------------------------------------------------------------------------
+ void vtkOptiTrackTracker::PrintSelf( ostream& os, vtkIndent indent )
+@@ -64,6 +67,51 @@
+ {
+   LOG_TRACE( "vtkOptiTrackTracker::Connect" ); 
+ 
++  // Connect tracker
++  int result = this->OptiTrackTracker->Open();
++
++  // Load Calibration file
++  this->OptiTrackTracker->SetCalibrationFile(this->CalibrationFile);
++  result = this->OptiTrackTracker->LoadCalibration();
++  if (result == ResultType_FAILURE)
++  {
++    LOG_ERROR("Calibration File could not be uploaded");
++    return PLUS_FAIL;
++  }
++
++  // Set camera parameters read from the PLUS XML configuration file
++  result = this->OptiTrackTracker->SetCameraParams(this->Exposition, this->Threshold, this->Illumination);
++  if (result == ResultType_FAILURE)
++  {
++    LOG_ERROR("Camera settings could not be set");
++    return PLUS_FAIL;
++  }
++
++  // Add tools from Configuration Files
++  std::string ConfFile;
++  Optitrack::OptitrackTool::Pointer newTool;
++  int resultConfigure = 0;
++
++  for (int toolN = 0; toolN < this->OptiTrackToolsConfFiles.size(); toolN++)
++  {
++    ConfFile = this->OptiTrackToolsConfFiles.at(toolN);
++    LOG_TRACE("Adding Tool");
++    newTool = Optitrack::OptitrackTool::New();
++    resultConfigure = newTool->ConfigureToolByXmlFile(ConfFile);
++    if (resultConfigure == ResultType_SUCCESS)
++    {
++      this->OptiTrackTracker->AddTrackerTool(newTool);
++    }
++    else
++    {
++      LOG_ERROR("Tool not added");
++    }
++  }
++
++
++  // Start tracker
++  result = this->OptiTrackTracker->StartTracking();
++
+   return PLUS_SUCCESS; 
+ }
+ 
+@@ -71,6 +119,13 @@
+ PlusStatus vtkOptiTrackTracker::InternalDisconnect()
+ {
+   LOG_TRACE( "vtkOptiTrackTracker::Disconnect" ); 
++
++  int result = this->OptiTrackTracker->StopTracking();
++
++  result = this->OptiTrackTracker->Close();
++
++  this->OptiTrackTracker = NULL;
++
+   return this->StopRecording();
+ }
+ 
+@@ -79,6 +134,57 @@
+ {
+   LOG_TRACE( "vtkOptiTrackTracker::InternalUpdate" ); 
+ 
++  if (this->OptiTrackTracker->GetState() !=
++    Optitrack::OptitrackTracker::OPTITRACK_TRACKER_STATE::STATE_TRACKER_Tracking)
++  {
++    LOG_ERROR("called Update() when Optitrack was not tracking");
++    return PLUS_FAIL;
++  }
++
++  // Tools are updated in a different Thread
++
++  // Default to incrementing frame count by one (in case a frame index cannot be retrieved from the tracker for a specific tool)
++  this->LastFrameNumber++;
++  int defaultToolFrameNumber = this->LastFrameNumber;
++  const double toolTimestamp = vtkAccurateTimer::GetSystemTime(); // unfiltered timestamp
++  vtkSmartPointer<vtkMatrix4x4> toolToTrackerTransform = vtkSmartPointer<vtkMatrix4x4>::New();
++
++  Optitrack::OptitrackTool::Pointer currentTool;
++  for (DataSourceContainerConstIterator it = this->GetToolIteratorBegin(); it != this->GetToolIteratorEnd(); ++it)
++  {
++    ToolStatus toolFlags = TOOL_OK;
++    toolToTrackerTransform->Identity();
++    vtkPlusDataSource* trackerTool = it->second;
++    std::string toolName = trackerTool->GetPortName();
++
++    if (this->OptiTrackTracker->GetOptitrackToolByName(toolName))
++    {
++      currentTool = this->OptiTrackTracker->GetOptitrackToolByName(toolName);
++      // Get the data from tool
++      ;
++
++      if (!currentTool->IsTracked())
++      {
++        toolFlags = TOOL_MISSING;
++      }
++      else
++      {
++        ToolStatus toolFlags = TOOL_OK;
++        this->GetTransformMatrix(toolName, toolToTrackerTransform);
++      }
++    }
++    else
++    {
++      toolFlags = TOOL_INVALID;
++    }
++
++    ++this->FrameNumber;
++    // Setting the timestamp
++    const double unfilteredTimestamp = vtkAccurateTimer::GetSystemTime();
++    this->ToolTimeStampedUpdate(trackerTool->GetSourceId(), toolToTrackerTransform, toolFlags, this->FrameNumber, unfilteredTimestamp);
++
++  }
++
+   return PLUS_SUCCESS;
+ }
+ 
+@@ -87,6 +193,83 @@
+ {
+   XML_FIND_DEVICE_ELEMENT_REQUIRED_FOR_READING(deviceConfig, rootConfigElement);
+ 
++
++  int exposition = 0;
++  if (deviceConfig->GetScalarAttribute("Exposition", exposition))
++  {
++    {
++      this->Exposition = static_cast<unsigned short>(exposition);
++    }
++  }
++
++  int threshold = 0;
++  if (deviceConfig->GetScalarAttribute("Threshold", threshold))
++  {
++    {
++      this->Threshold = static_cast<unsigned short>(threshold);
++    }
++  }
++
++  int Illumination = 0;
++  if (deviceConfig->GetScalarAttribute("Illumination", Illumination))
++  {
++    {
++      this->Illumination = static_cast<unsigned short>(Illumination);
++    }
++  }
++
++  std::string CalibrationFile = std::string(deviceConfig->GetAttribute("CalibrationFile"));
++
++  this->CalibrationFile = CalibrationFile;
++
++  XML_FIND_NESTED_ELEMENT_REQUIRED(dataSourcesElement, deviceConfig, "DataSources");
++
++  for (int nestedElementIndex = 0; nestedElementIndex < dataSourcesElement->GetNumberOfNestedElements(); nestedElementIndex++)
++  {
++    vtkXMLDataElement* toolDataElement = dataSourcesElement->GetNestedElement(nestedElementIndex);
++    if (STRCASECMP(toolDataElement->GetName(), "DataSource") != 0)
++    {
++      // if this is not a data source element, skip it
++      continue;
++    }
++    if (toolDataElement->GetAttribute("Type") != NULL && STRCASECMP(toolDataElement->GetAttribute("Type"), "Tool") != 0)
++    {
++      // if this is not a Tool element, skip it
++      continue;
++    }
++    const char* toolId = toolDataElement->GetAttribute("Id");
++    if (toolId == NULL)
++    {
++      LOG_ERROR("Failed to initialize Optitrack tool: DataSource Id is missing");
++      continue;
++    }
++    PlusTransformName toolTransformName(toolId, this->GetToolReferenceFrameName());
++    std::string toolSourceId = toolTransformName.GetTransformName();
++    vtkPlusDataSource* trackerTool = NULL;
++
++    if (this->GetTool(toolSourceId, trackerTool) != PLUS_SUCCESS || trackerTool == NULL)
++    {
++      LOG_ERROR("Failed to get Optitrack tool: " << toolSourceId);
++      continue;
++    }
++
++    trackerTool->SetPortName(toolId);
++
++    std::string xmlFile = std::string(toolDataElement->GetAttribute("ConfFile"));
++
++    if (!xmlFile.empty())
++    {
++      this->OptiTrackToolsConfFiles.push_back(xmlFile);
++      std::cout << xmlFile << std::endl;
++    }
++    else
++    {
++      LOG_ERROR("Failed to get Optitrack tool: " << toolSourceId);
++      continue;
++    }
++
++  }
++
+   return PLUS_SUCCESS;
+ }
+ 
+@@ -95,5 +278,27 @@
+ {
+   XML_FIND_DEVICE_ELEMENT_REQUIRED_FOR_WRITING(deviceConfig, rootConfigElement);
+ 
++  deviceConfig->SetIntAttribute("Exposition", static_cast<unsigned int>(this->Exposition));
++  deviceConfig->SetIntAttribute("Threshold", static_cast<unsigned int>(this->Threshold));
++  deviceConfig->SetIntAttribute("Illumination", static_cast<unsigned int>(this->Illumination));
++  deviceConfig->SetAttribute("CalibrationFile", this->CalibrationFile.c_str());
++
+   return PLUS_SUCCESS;
++}
++
++//----------------------------------------------------------------------------
++void vtkOptiTrackTracker::GetTransformMatrix(std::string toolName, vtkMatrix4x4* transformMatrix)
++{
++
++  Optitrack::OptitrackTool::Pointer tool = this->OptiTrackTracker->GetOptitrackToolByName(toolName);
++  transformMatrix->Identity();
++  int rotIndex = 0;
++  for (int col = 0; col < 4; col++)
++  {
++    for (int row = 0; row < 3; row++)
++    {
++      transformMatrix->SetElement(row, col, tool->GetTransformMatrix()(row, col));
++    }
++  }
++
+ }
+\ No newline at end of file
+Index: src/DataCollection/OptiTrack/vtkOptiTrackTracker.h
+===================================================================
+--- src/DataCollection/OptiTrack/vtkOptiTrackTracker.h	(revision 4516)
++++ src/DataCollection/OptiTrack/vtkOptiTrackTracker.h	(working copy)
+@@ -4,6 +4,18 @@
+ See License.txt for details.
+ =========================================================Plus=header=end*/
+ 
++/*========================================================================
++Date: Ag 2015
++Authors include:
++- Eugenio Marinetto [*][ç] emarinetto@hggm.es
++- Laura Sanz [*] lsanz@hggm.es
++- David Garcia [*] dgnati@hggm.es
++- Mikael Brudfors [*] brudfors@hggm.es
++- Javier Pascau [*][ç] jpascau@hggm.es
++[*] Laboratorio de Imagen Medica, Hospital Gregorio Maranon - http://image.hggm.es/
++[ç] Departamento de Bioingeniería e Ingeniería Aeroespacial. Universidad Carlos III de Madrid
++==========================================================================*/
++
+ #ifndef __vtkOptiTrackTracker_h
+ #define __vtkOptiTrackTracker_h
+ 
+@@ -11,14 +23,16 @@
+ 
+ #include "vtkPlusDevice.h"
+ 
++// BiiGOptitrackControl github.com/nenetto/NPTrackingTools
++#include "OptitrackTracker.h"
++#include "OptitrackTool.h"
++#include <sstream>
++
+ /*!
+ \class vtkOptimetConoProbeTracker 
+ \brief Interface for the OptiTrack Tracker
+-
+-This class talks with a OptiTrack Tracker over the OptiTrack Tracking Tools SDK.
+-
++This class talks with a OptiTrack Tracker over the NPTrackingtools library.
+ Requires PLUS_USE_OPTITRACK option in CMake.
+-
+ \ingroup PlusLibDataCollection
+ */
+ class vtkDataCollectionExport vtkOptiTrackTracker : public vtkPlusDevice
+@@ -50,6 +64,9 @@
+   /*! Write configuration to xml data */
+   virtual PlusStatus WriteConfiguration(vtkXMLDataElement* config);
+ 
++  /*! Get the transformation for a connected tool given the tool name = PortName (PLUS) */
++  void GetTransformMatrix(std::string toolName, vtkMatrix4x4* transformMatrix);
++
+ protected:
+ 
+   vtkOptiTrackTracker();
+@@ -62,6 +79,27 @@
+ 
+ private:  // Variables.  
+ 
++  /*! Object that represents the Tracker */
++  Optitrack::OptitrackTracker::Pointer OptiTrackTracker;
++
++  /*! List of Configuration Files for Tools */
++  std::vector<std::string> OptiTrackToolsConfFiles;
++
++  /*! Cameras Parameter 1 */
++  int Exposition;
++
++  /*! Cameras Parameter 2 */
++  int Threshold;
++
++  /*! Cameras Parameter 3 */
++  int Illumination;
++
++  /*! Calibration File for Optitrack System */
++  std::string CalibrationFile;
++
++  /*! Index of the last frame number. This is used for providing a frame number when the tracker doesn't return any transform */
++  unsigned long LastFrameNumber;
++
+ };
+ 
+-#endif
++#endif
+\ No newline at end of file

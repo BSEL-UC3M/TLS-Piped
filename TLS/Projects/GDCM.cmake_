@@ -1,0 +1,44 @@
+# Author: Ali Uneri
+# Date: 2014-12-01
+
+set(EP_OPTION_NAME "USE_${EP_NAME}")
+set(EP_REQUIRED_PROJECTS Git)
+set(EP_URL "git://git.code.sf.net/p/gdcm/gdcm")
+set(EP_OPTION_DESCRIPTION "Grassroots DICOM")
+
+cma_envvar(@LIBRARYPATH@ PREPEND "@INSTALL_DIR@/@LIBDIR@")
+
+cma_end_definition()
+# -----------------------------------------------------------------------------
+
+set(EP_CMAKE_ARGS
+  -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+  -DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS}
+  -DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS}
+  -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>)
+
+if(USE_MITK)
+  list(APPEND EP_CMAKE_ARGS -DGDCM_BUILD_SHARED_LIBS:BOOL=ON)
+else()
+  list(APPEND EP_CMAKE_ARGS -DGDCM_BUILD_SHARED_LIBS:BOOL=OFF)
+endif()
+
+ExternalProject_Add(${EP_NAME}
+  DEPENDS ${EP_REQUIRED_PROJECTS}
+  # download
+  GIT_REPOSITORY ${EP_URL}
+  GIT_TAG v2.4.1
+  # patch
+  # update
+  UPDATE_COMMAND ""
+  # configure
+  SOURCE_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}
+  CMAKE_ARGS ${EP_CMAKE_ARGS}
+  # build
+  BINARY_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}-build
+  # install
+  INSTALL_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}-install
+  # test
+  )
+
+set(${PROJECT_NAME}_${EP_NAME}_DIR "${PROJECT_BINARY_DIR}/${EP_NAME}-install/lib/gdcm-2.4" CACHE INTERNAL "")

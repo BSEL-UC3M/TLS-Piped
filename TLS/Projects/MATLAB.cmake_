@@ -1,0 +1,63 @@
+# Author: Ali Uneri
+# Date: 2013-05-02
+
+# TODO(auneri1) Install MATLAB Engine for Python only for MATLAB > 2015a.
+# TODO(auneri1) Perform "mex -setup" if USE_MATLAB_MEX=ON.
+# TODO(auneri1) Verify that path contains "C:\Program Files\MATLAB\R2015b\bin\win64" if USE_MATLAB_MEX=ON.
+
+set(EP_OPTION_NAME "USE_${EP_NAME}")
+
+cma_list(APPEND EP_REQUIRED_PROJECTS Python IF USE_Python_Conda)
+
+cma_end_definition()
+# -----------------------------------------------------------------------------
+
+cmake_dependent_option(${EP_OPTION_NAME}_MEX "" OFF ${EP_OPTION_NAME} OFF)
+
+if(${EP_OPTION_NAME}_MEX)
+  find_package(MATLAB REQUIRED)
+endif()
+
+find_program(MATLAB_EXECUTABLE matlab)
+if(NOT MATLAB_EXECUTABLE)
+  message(FATAL_ERROR "Please specify MATLAB_EXECUTABLE")
+endif()
+
+get_filename_component(MATLAB_BIN_DIR "${MATLAB_EXECUTABLE}" PATH)
+get_filename_component(MATLAB_DIR "${MATLAB_BIN_DIR}" PATH)
+
+if(UNIX)
+  find_program(CSH_EXECUTABLE csh)
+  if(NOT CSH_EXECUTABLE)
+    message(FATAL_ERROR "Please specify CSH_EXECUTABLE")
+  endif()
+endif()
+
+if(USE_Python_Conda)
+  set(EP_BUILD
+    SOURCE_DIR "${MATLAB_DIR}/extern/engines/python"
+    BUILD_COMMAND ${CMAKE_COMMAND} -P "${PROJECT_BINARY_DIR}/${${PROJECT_NAME}_PROJECT_NAME}.cmake" "${${PROJECT_NAME}_PYTHON_EXECUTABLE}" setup.py build --build-base "${PROJECT_BINARY_DIR}/${EP_NAME}-build" install
+    BUILD_IN_SOURCE 1)
+else()
+  set(EP_BUILD
+    BUILD_COMMAND "")
+endif()
+
+ExternalProject_Add(${EP_NAME}
+  DEPENDS ${EP_REQUIRED_PROJECTS}
+  # download
+  DOWNLOAD_COMMAND ""
+  # patch
+  # update
+  UPDATE_COMMAND ""
+  # configure
+  CONFIGURE_COMMAND ""
+  # build
+  "${EP_BUILD}"
+  # install
+  INSTALL_COMMAND ""
+  # test
+  )
+
+set(${PROJECT_NAME}_MATLAB_EXECUTABLE "${MATLAB_EXECUTABLE}" CACHE INTERNAL "")
+set(${PROJECT_NAME}_MATLAB_DIR "${MATLAB_DIR}" CACHE INTERNAL "")

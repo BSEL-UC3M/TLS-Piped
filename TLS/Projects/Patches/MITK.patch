@@ -1,0 +1,17 @@
+diff --git a/SuperBuild.cmake b/SuperBuild.cmake
+index 7fd30eb..bec0fc3 100644
+--- a/SuperBuild.cmake
++++ b/SuperBuild.cmake
+@@ -397,6 +397,7 @@ ExternalProject_Add(${proj}
+     -DBOOST_ROOT:PATH=${BOOST_ROOT}
+     -DBOOST_LIBRARYDIR:PATH=${BOOST_LIBRARYDIR}
+     -DMITK_USE_Boost_LIBRARIES:STRING=${MITK_USE_Boost_LIBRARIES}
++    -DDOXYGEN_EXECUTABLE:FILEPATH=${DOXYGEN_EXECUTABLE}
+   CMAKE_ARGS
+     ${mitk_initial_cache_arg}
+     ${MAC_OSX_ARCHITECTURE_ARGS}
+@@ -441,4 +442,3 @@ add_custom_target(MITK
+   COMMAND ${mitk_build_cmd}
+   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/MITK-build
+ )
+-

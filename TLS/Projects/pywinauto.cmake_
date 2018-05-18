@@ -1,0 +1,32 @@
+# Author: Ali Uneri
+# Date: 2014-06-10
+
+set(EP_OPTION_NAME "USE_${EP_NAME}")
+set(EP_REQUIRED_PROJECTS Mercurial Python)
+set(EP_REQUIRED_OPTIONS WIN32)
+set(EP_URL "https://code.google.com/r/vasilyvryabov-pywinauto-x64")
+
+cma_envvar(PYTHONPATH PREPEND "@SOURCE_DIR@")
+
+cma_end_definition()
+# -----------------------------------------------------------------------------
+
+file(TO_NATIVE_PATH ${PROJECT_BINARY_DIR} PROJECT_BINARY_NATIVE_DIR)
+
+ExternalProject_Add(${EP_NAME}
+  DEPENDS ${EP_REQUIRED_PROJECTS}
+  # download
+  HG_REPOSITORY ${EP_URL}
+  HG_TAG 0b41fa1a7c4c
+  # patch
+  # update
+  UPDATE_COMMAND ""
+  # configure
+  SOURCE_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}
+  CONFIGURE_COMMAND ""
+  # build
+  BUILD_COMMAND ""
+  # install
+  INSTALL_COMMAND ""
+  # test
+  )

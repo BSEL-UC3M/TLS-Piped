@@ -1,0 +1,76 @@
+diff --git a/cisst-dependencies/CMakeLists.txt b/cisst-dependencies/CMakeLists.txt
+index 006f62a..8f5cc43 100644
+--- a/cisst-dependencies/CMakeLists.txt
++++ b/cisst-dependencies/CMakeLists.txt
+@@ -43,7 +43,9 @@ foreach (package ${CISST_QT5_PACKAGES})
+   if (${package}_FOUND)
+     cisst_cmake_debug ("Found ${package}")
+   else ()
+-    message ("Looking for Qt5: can't find ${package}")
++    if (CISST_HAS_QT5)
++      message ("Looking for Qt5: can't find ${package}")
++    endif()
+     set (CISST_QT5_FOUND OFF)
+   endif ()
+ endforeach ()
+diff --git a/cisstStereoVision/cisstStereoVision.i b/cisstStereoVision/cisstStereoVision.i
+index 52ad2d3..9e31ea5 100644
+--- a/cisstStereoVision/cisstStereoVision.i
++++ b/cisstStereoVision/cisstStereoVision.i
+@@ -64,6 +64,7 @@ http://www.cisst.org/cisst/license.txt.
+ %include "cisstStereoVision/svlFilterImageResizer.h"
+ %include "cisstStereoVision/svlFilterSourceBase.h"
+ %include "cisstStereoVision/svlFilterSourceVideoFile.h"
++%include "cisstStereoVision/svlFilterSplitter.h"
+ %include "cisstStereoVision/svlFilterVideoFileWriter.h"
+ %include "cisstStereoVision/svlFilterSourceBuffer.h"
+ %include "cisstStereoVision/svlFilterImageChannelSwapper.h"
+diff --git a/cisstStereoVision/svlPython.h b/cisstStereoVision/svlPython.h
+index e3c07e7..7f20292 100644
+--- a/cisstStereoVision/svlPython.h
++++ b/cisstStereoVision/svlPython.h
+@@ -44,6 +44,7 @@ http://www.cisst.org/cisst/license.txt.
+ #include <cisstStereoVision/svlFilterOutput.h>
+ #include <cisstStereoVision/svlFilterSourceVideoFile.h>
+ #include <cisstStereoVision/svlFilterSourceBuffer.h>
++#include <cisstStereoVision/svlFilterSplitter.h>
+ #include <cisstStereoVision/svlFilterVideoFileWriter.h>
+ #include <cisstStereoVision/svlFilterImageChannelSwapper.h>
+ 
+diff --git a/cisstStereoVision/svlTypes.h b/cisstStereoVision/svlTypes.h
+index 5ce71f9..10bc846 100644
+--- a/cisstStereoVision/svlTypes.h
++++ b/cisstStereoVision/svlTypes.h
+@@ -64,7 +64,9 @@ http://www.cisst.org/cisst/license.txt.
+     #include <opencv2/ml/ml.hpp>
+     #include <opencv2/video/tracking.hpp>
+     #include <opencv2/video/background_segm.hpp>
++#if CISST_SVL_HAS_CUDA
+     #include <opencv2/gpu/gpu.hpp>
++#endif
+ #else // CISST_SVL_HAS_OPENCV2
+     // to compile the same API
+     typedef void IplImage;
+diff --git a/cmake/cisstMacros.cmake b/cmake/cisstMacros.cmake
+index c77a451..3f22fa1 100644
+--- a/cmake/cisstMacros.cmake
++++ b/cmake/cisstMacros.cmake
+@@ -537,7 +537,7 @@ function (cisst_add_swig_module ...)
+     set_source_files_properties (${SWIG_INTERFACE_FILE} PROPERTIES CPLUSPLUS ON)
+     # make sure the runtime code is not included
+     set_source_files_properties (${SWIG_INTERFACE_FILE}
+-                                 PROPERTIES SWIG_FLAGS "-v;-modern;-fcompact;-fvirtual")
++                                 PROPERTIES SWIG_FLAGS "-modern;-fcompact;-fvirtual")
+     # finally create the swig project using CMake command
+     set (MODULE_NAME ${MODULE}Python)
+     cisst_cmake_debug ("cisst_add_swig_module: swig_add_module (${MODULE_NAME} python ${SWIG_INTERFACE_FILE})")
+@@ -545,6 +545,9 @@ function (cisst_add_swig_module ...)
+     if (WIN32)
+       set_target_properties (_${MODULE_NAME} PROPERTIES SUFFIX .pyd)
+       set_target_properties (_${MODULE_NAME} PROPERTIES DEBUG_POSTFIX "_d")
++      set_target_properties (_${MODULE_NAME} PROPERTIES COMPILE_FLAGS "/wd4102")
++    else (WIN32)
++      set_target_properties (_${MODULE_NAME} PROPERTIES COMPILE_FLAGS "-Wno-unused-label -Wno-unused-parameter")
+     endif (WIN32)
+     cisst_cmake_debug ("cisst_add_swig_module: swig_link_libraries (${MODULE_NAME} ${MODULE_LINK_LIBRARIES} ${cisstPython_LIBRARIES})")
+     swig_link_libraries (${MODULE_NAME} ${MODULE_LINK_LIBRARIES} ${cisstPython_LIBRARIES})

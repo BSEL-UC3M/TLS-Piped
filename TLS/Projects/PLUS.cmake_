@@ -1,0 +1,71 @@
+# Author: Eugenio Marinetto
+# Date: 2015-03-01
+
+set(EP_OPTION_NAME "USE_${EP_NAME}")
+set(EP_REQUIRED_PROJECTS Qt Subversion)
+set(EP_URL "https://subversion.assembla.com/svn/plus/trunk/PlusBuild")
+set(EP_OPTION_DESCRIPTION "Public software Library for UltraSound imaging research")
+set(EP_VERSION "4531") # Change to documented 
+
+cma_list(APPEND EP_REQUIRED_PROJECTS Slicer IF USE_Slicer)
+cma_list(APPEND EP_REQUIRED_PROJECTS BiiGOptitrack IF USE_BiiGOptitrack)
+
+cma_envvar(PATH APPEND "@BINARY_DIR@/bin/@INTDIR@")
+cma_envvar(@LIBRARYPATH@ APPEND "@BINARY_DIR@/bin/@INTDIR@")
+
+cma_end_definition()
+# -----------------------------------------------------------------------------
+
+cmake_dependent_option(${EP_OPTION_NAME}_Interson "Support for Interson ultrasound devices" OFF ${EP_OPTION_NAME} OFF)
+cmake_dependent_option(${EP_OPTION_NAME}_Optitrack "Support PLUS for Optitrack" OFF ${EP_OPTION_NAME} ON)
+cmake_dependent_option(${EP_OPTION_NAME}_Conoprobe "Support PLUS for Conoprobe" OFF ${EP_OPTION_NAME} OFF)
+cmake_dependent_option(${EP_OPTION_NAME}_Phidgets "Support PLUS for PHIDGETS" OFF ${EP_OPTION_NAME} OFF)
+cmake_dependent_option(${EP_OPTION_NAME}_IcCapturing_Video "Support PLUS for IC Capturing Video" OFF ${EP_OPTION_NAME} OFF)
+
+
+set(EP_CMAKE_ARGS
+  -DADDITIONAL_C_FLAGS:STRING=${CMAKE_C_FLAGS}
+  -DADDITIONAL_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS}
+  -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+  -DPLUS_SVN_REVISION:STRING=${EP_VERSION}
+  -DPLUS_USE_POLARIS:BOOL=OFF
+  -DVTK_USE_QT:BOOL=${USE_VTK}
+  -DPLUS_USE_OPTITRACK:BOOL=${${EP_OPTION_NAME}_Optitrack}
+  -DPLUS_USE_OPTIMET_CONOPROBE:BOOL=${${EP_OPTION_NAME}_Conoprobe}
+  -DPLUS_USE_PHIDGET_SPATIAL_TRACKER:BOOL=${${EP_OPTION_NAME}_Phidgets}
+  -DPLUS_USE_ICCAPTURING_VIDEO:BOOL=${${EP_OPTION_NAME}_IcCapturing_Video}
+  -DPLUSBUILD_OFFLINE_BUILD:BOOL=OFF
+  -D${PROJECT_NAME}_SVN_EXECUTABLE:FILEPATH=${${PROJECT_NAME}_SVN_EXECUTABLE})
+
+if(USE_Slicer)
+  list(APPEND EP_CMAKE_ARGS 
+    -DPLUSBUILD_SLICER_BIN_DIRECTORY:PATH=${${PROJECT_NAME}_Slicer_DIR}
+    -DPLUSBUILD_USE_3DSlicer:BOOL=${USE_Slicer})
+endif()
+
+if(${USE_BiiGOptitrack})
+  list(APPEND EP_CMAKE_ARGS
+    -DBiiGOptitrack_DIR:PATH=${${PROJECT_NAME}_BiiGOptitrack_DIR}
+    )
+endif()
+
+ExternalProject_Add(${EP_NAME}
+  DEPENDS ${EP_REQUIRED_PROJECTS}
+  # download
+  SVN_REPOSITORY ${EP_URL}
+  SVN_REVISION -r ${EP_VERSION}
+  # patch
+  # update
+  UPDATE_COMMAND ""
+  # configure
+  SOURCE_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}
+  CMAKE_ARGS ${EP_CMAKE_ARGS}
+  # build
+  BINARY_DIR ${PROJECT_BINARY_DIR}/${EP_NAME}-build
+  # install
+  INSTALL_COMMAND ""
+  # test
+  )
+
+set(${PROJECT_NAME}_${EP_NAME}_DIR "${PROJECT_BINARY_DIR}/${EP_NAME}-build" CACHE INTERNAL "")
+set(${PROJECT_NAME}_${EP_NAME}_OUTPUT_DIR "${PROJECT_BINARY_DIR}/${EP_NAME}-build/bin" CACHE INTERNAL "")
