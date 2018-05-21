@@ -16,6 +16,7 @@ Created on Mon Apr  3 09:24:51 2017
 import numpy as np
 import SimpleITK 
 import os
+from collections import Iterable
 
 from scipy.stats import halfnorm, expon
 

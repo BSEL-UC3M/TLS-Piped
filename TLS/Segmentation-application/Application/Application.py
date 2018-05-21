@@ -9,7 +9,7 @@ Created on Tue Apr 11 17:38:44 2017
 import os
 from Segmentation import RESULTS_FOLDER, Pipe
 from Filters import Apply_Median,Choose_Lungs, Otsu_Threshold, Labelize,Extract_Trachea_FM, Hu_Threshold
-from Filters import Binarize, Mask_Neg, Dilation,find_trachea_init_ITK, File_Holes, Erode, Mask
+from Filters import Binarize, Mask_Neg, Dilation,find_trachea_init_ITK, File_Holes, Erode, Mask, get_init_trachea_naive
 from UsefullFunctions import find_images, argus2SimpleITK
 
 #TODO Evolve this with "REFACTORING" in order to include automatically each 
@@ -66,7 +66,7 @@ def pamplona_lungs_segmentation(input_image_path, results_dir = None):
     lungs_chooser = Choose_Lungs(save_img=(image_trick, True)) #Initialize out to allow pipeline bifurcations
     
     
-    lungs_chooser_pipeline = [Apply_Median(save_img=(image_trick, True), radius=4 ),
+    lungs_chooser_pipeline = [Apply_Median(save_img=(image_trick, True), radius=1 ),
                               Hu_Threshold(thrPlusOne=-1,ct_HUnits_error=30,inside_val = 1.0, save_img=(image_trick, True)),
                               Labelize(save_img=(image_trick, True)),
                               lungs_chooser,
@@ -76,10 +76,16 @@ def pamplona_lungs_segmentation(input_image_path, results_dir = None):
     lungs_chooser_workflow = Pipe('Workflow for extracting pamplona lungs', lungs_chooser_pipeline)
     lungs_chooser_workflow.execute(input_image_path)
     
-    trachea_extraction_pipeline = [ Extract_Trachea_FM(intial_postion = find_trachea_init_ITK(lungs_chooser_workflow.output_path_and_image.path),
+    #trachea_extraction_pipeline = [ Extract_Trachea_FM(intial_postion = find_trachea_init_ITK(lungs_chooser_workflow.output_path_and_image.path),
+     #                                                 trachea_expected_perimeter= Extract_Trachea_FM.MICE_EXPECTED_PERIMETER,save_img=(image_trick,True),
+      #                                                variable_thr= (-625,100), time_Step=0.8, fixed_thr=0.8 ),
+       #                                               Binarize(), Dilation(radius=3, foreground = 255) ]
+    
+    trachea_extraction_pipeline = [ Extract_Trachea_FM(intial_postion = get_init_trachea_naive(lungs_chooser_workflow.output_path_and_image.image, animal_model=Extract_Trachea_FM.MICE_EXPECTED_PERIMETER),
                                                       trachea_expected_perimeter= Extract_Trachea_FM.MICE_EXPECTED_PERIMETER,save_img=(image_trick,True),
                                                       variable_thr= (-625,100), time_Step=0.8, fixed_thr=0.8 ),
-                                                      Binarize(), Dilation(radius=3, foreground = 255) ]
+                                                      Binarize(), Dilation(radius=3, foreground = 255) ]    
+    
     
     trachea_extraction_workflow = Pipe('Workflow for extracting the mice airways', trachea_extraction_pipeline)
     trachea_extraction_workflow.execute(lungs_chooser_workflow.filters_list[0])
@@ -99,7 +105,7 @@ def pamplona_lungs_segmentation(input_image_path, results_dir = None):
 
 if __name__ == "__main__":
     import glob
-    images = glob.glob('../../../CT_pulmones/*.mhd')
+    images = glob.glob('/home/pmacias/Projects/Pamplona_Elastasa/CT_pulmones_ori/*.mhd')
     results = 'Results'
     for image in images:
         print image
