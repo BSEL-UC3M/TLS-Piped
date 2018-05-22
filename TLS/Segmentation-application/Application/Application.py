@@ -45,9 +45,14 @@ def mouse_lung_segmentation(input_image_path,results_dir = None):
     lungs_chooser_workflow = Pipe('Workflow for extracting mice lungs', lungs_chooser_pipeline)
     lungs_chooser_workflow.execute(input_image_path)
     
-    trachea_extraction_pipeline = [ Extract_Trachea_FM(intial_postion = find_trachea_init_ITK(lungs_chooser_workflow.output_path_and_image.path), time_Step = 0.5, 
+    #trachea_extraction_pipeline = [ Extract_Trachea_FM(intial_postion = find_trachea_init_ITK(lungs_chooser_workflow.output_path_and_image.path), time_Step = 0.5, 
+     #                                                  fixed_thr=1.0, trachea_expected_perimeter= Extract_Trachea_FM.MICE_EXPECTED_PERIMETER,save_img=(image_trick,True)),
+      #                            Binarize(),Dilation(radius=2, foreground = 255) ]
+    
+    trachea_extraction_pipeline = [ Extract_Trachea_FM(intial_postion = get_init_trachea_naive(lungs_chooser_workflow.output_path_and_image.image, animal_model=Extract_Trachea_FM.MICE_EXPECTED_PERIMETER), time_Step = 0.5, 
                                                        fixed_thr=1.0, trachea_expected_perimeter= Extract_Trachea_FM.MICE_EXPECTED_PERIMETER,save_img=(image_trick,True)),
                                   Binarize(),Dilation(radius=2, foreground = 255) ]
+    
     
     trachea_extraction_workflow = Pipe('Workflow for extracting the mice airways', trachea_extraction_pipeline)
     trachea_extraction_workflow.execute(lungs_chooser_workflow.filters_list[0])
@@ -76,6 +81,7 @@ def pamplona_lungs_segmentation(input_image_path, results_dir = None):
     lungs_chooser_workflow = Pipe('Workflow for extracting pamplona lungs', lungs_chooser_pipeline)
     lungs_chooser_workflow.execute(input_image_path)
     
+    ##Alternative trachea extraction###
     #trachea_extraction_pipeline = [ Extract_Trachea_FM(intial_postion = find_trachea_init_ITK(lungs_chooser_workflow.output_path_and_image.path),
      #                                                 trachea_expected_perimeter= Extract_Trachea_FM.MICE_EXPECTED_PERIMETER,save_img=(image_trick,True),
       #                                                variable_thr= (-625,100), time_Step=0.8, fixed_thr=0.8 ),
@@ -105,9 +111,12 @@ def pamplona_lungs_segmentation(input_image_path, results_dir = None):
 
 if __name__ == "__main__":
     import glob
-    images = glob.glob('/home/pmacias/Projects/Pamplona_Elastasa/CT_pulmones_ori/*.mhd')
+    #images = glob.glob('/home/pmacias/Projects/MonkeysTuberculosis/TLS-Piped/CT_M/*.mhd')
+    images = glob.glob('/media/pmacias/DATA2/amunoz/GSK/GSK_animals_new/TE0789/*/Segmentation/*_invImage.mhd')
     results = 'Results'
     for image in images:
         print image
-        pamplona_lungs_segmentation(image, results_dir=results)
+        mouse_lung_segmentation(image, results_dir = results) #GSK Mice Pipeline
+        #pamplona_lungs_segmentation(image, results_dir=results) #Pamplona Elastasa pipeline
+        
     
