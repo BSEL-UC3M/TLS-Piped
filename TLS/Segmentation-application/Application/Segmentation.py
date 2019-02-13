@@ -61,10 +61,12 @@ class A_Filter():
     location_path just for external filters
     """
     __metaclass__ = ABCMeta
-    def __init__(self, filter_name,kind, location_path = UTILITIES_DIR, built_in = True, save_img = (None,True) ):
+    def __init__(self, filter_name,kind, location_path = UTILITIES_DIR, built_in = True, save_img = (None,True), execute_if_exits = True, params_order = True ):
         self.input_path_and_image = PATH_IMAGE(None,None)
         self.output_path_and_image = PATH_IMAGE(None,None)
         self.filter_name = filter_name
+        self.execute_if_exists = execute_if_exits
+        self.params_order = params_order
         #self.params = []
 
         if isinstance(save_img,tuple) and len(save_img) == 2:
@@ -105,7 +107,7 @@ class A_Filter():
             self.input_path_and_image.image = SimpleITK.ReadImage(a_filter.output_path_and_image.path)
         else:
             self.input_path_and_image.path = a_filter #Should be a path to the image
-            self.input_path_and_image.image = SimpleITK.ReadImage(a_filter) if isinstance(a_filter, str) else a_filter
+            self.input_path_and_image.image = SimpleITK.ReadImage(a_filter) if isinstance(a_filter, str) else a_filter.output_path_and_image.image
         
     def flush(self):
         self.input_path_and_image.image = None
@@ -130,8 +132,10 @@ class External_Filter(A_Filter):
         self.output_path_and_image.path = self.output_path_and_image.path if output is None else output
         self.set_params()
         self.check_params()
-        calling_external(self.path, [self.input_path_and_image.path]+self.params
-        +[self.output_path_and_image.path])
+        self.params_list = [self.input_path_and_image.path]+self.params+[self.output_path_and_image.path] if self.params_order else [self.input_path_and_image.path]+[self.output_path_and_image.path]+self.params
+        if not os.path.exists(self.output_path_and_image.path) or self.execute_if_exists:
+          calling_external(self.path, self.params_list)
+          
         return self
         
     def check_params(self):
@@ -141,7 +145,8 @@ class External_Filter(A_Filter):
             
     @abstractmethod
     def set_params(self):pass
-        
+  
+
 
 class Simple_ITK_Filter(A_Filter):
     __metaclass__ = ABCMeta    

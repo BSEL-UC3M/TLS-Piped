@@ -15,6 +15,7 @@ import xlrd
 import pandas as pd
 import subprocess
 import logging
+import glob
 
 separator=os.sep
 
@@ -309,5 +310,40 @@ def orderByGroup(volOriginal,volMask,rootOriginal,rootMask,groups):
 
 if __name__ == "__main__":
     print 'Super highly naive  quantification'
+    summ = pd.read_csv('/home/pmacias/Descargas/Batch6-Sheet1.csv')
+    suffix = "segmented_lungs.mhd"
+    original_volumes = glob.glob('/media/pmacias/DATA2/Results_PHE_B6/*'+suffix)
+    results = []
+    
+    for ori_vol in original_volumes:
+      image_dir, image_file = os.path.split(ori_vol)
+      image_name,extension = os.path.splitext(image_file)
+      fields = image_name.split('_')
+      week = fields[0].split('Wk')[1]
+      subject = fields[1]
+      find_for = image_name.split(os.path.splitext(suffix)[0])[0][:-1]
+      print(find_for)
+      group = summ[summ.ID == find_for].Group.values[0]
+      mask_vol = ori_vol.split(suffix)[0]
+      mask_vol = mask_vol+'lungs_mask.mhd'
+      if os.path.exists(mask_vol):
+        print('Subject',subject, 'Week', week, 'Group', group)
+        print(ori_vol)
+        print(mask_vol)
+      else:
+        print('NO EXISTE')
+        print(mask_vol)
+      print('----------------------------------------------')
+
+      quantification = get_Lung_Damage(SimpleITK.ReadImage(ori_vol), SimpleITK.ReadImage(mask_vol), thresholds = (-1030,-480,10, 800))
+      quantification['Subject'] = subject
+      quantification['Week'] = week
+      quantification['Group'] = group
+      quantification['ID'] = find_for
+      results.append(quantification)
+    
+    df_results = pd.DataFrame(results)
+    df_results.to_csv('PHE_Batch_6_results.csv')
+    
     
             

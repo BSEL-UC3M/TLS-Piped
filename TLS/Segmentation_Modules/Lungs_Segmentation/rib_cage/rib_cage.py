@@ -132,12 +132,15 @@ def get_bounding_box(original_image, rib_cage_mask, lung_mask,  include_bones = 
 if __name__ == "__main__":
     image_path = ('/media/pmacias/DATA2/amunoz/LOTE_2-study_5007/Study-5007/049JID/2.3WEEKS_26JUL14/5007_049JID_3WEEKSW_Segmentation/5007_049JID_3WEEKSW_Segmentation_oneFileVolume.mhd')
     
-    images = glob.glob('/media/pmacias/DATA2/amunozs/LOTE_2-study_5007/Study-5007/*/*/*/*oneFileVolume.mhd')
+    images = glob.glob('/media/amunoz/PHE_Studies/Lote_4_study-5407/*/*/*.mhd')
     
-    for image in images:
-        fields = image.split('/')[-2].split('_')
-        s = fields[1]
-        w = fields[2].split('W')[0]
+    images = ['/media/amunoz/PHE_Studies/LOTE_2-study_5007/Study-5007/049JID/1.PRE_07JUN14/5007_049JID_0W_Segmentation/5007_049JID_0W_Segmentation_oneFileVolume.mhd']
+    image_mask = SimpleITK.ReadImage('/media/amunoz/PHE_Studies/LOTE_2-study_5007/Aurora_masks/5007_049JID_0W.mhd')
+    images = glob.glob('/media/amunoz/PHE_Studies/Lote_6_study_5449/MHDimgs/*.mhd')
+    for image in images[0:10:]:
+        fields = image.split('/')[-1].split('_')
+        s = fields[0]
+        w = fields[1].split('W')[0]
         image = SimpleITK.ReadImage(image)
         name = s+'_'+w+'.mhd'
         print (name)
@@ -150,4 +153,5 @@ if __name__ == "__main__":
         #SimpleITK.WriteImage(a[5],'/tmp/bones_no_scp.mhd')
         SimpleITK.WriteImage(a[6],'/tmp/rc_'+name)
         SimpleITK.WriteImage(a[6],'/tmp/lung_'+name)
-        SimpleITK.WriteImage(get_bounding_box(image, a[6], a[7]), '/tmp/cropped_'+name)
+        SimpleITK.WriteImage(get_bounding_box(image, a[6], a[7]), '/tmp/'+name)
+        #SimpleITK.WriteImage(get_bounding_box(image_mask, a[6], a[7]), '/tmp/m_'+name)

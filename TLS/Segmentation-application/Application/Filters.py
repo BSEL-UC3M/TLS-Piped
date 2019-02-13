@@ -16,6 +16,7 @@ Created on Mon Apr  3 09:24:51 2017
 import numpy as np
 import SimpleITK 
 import os
+import pandas as pd
 from collections import Iterable
 
 from scipy.stats import halfnorm, expon
@@ -32,8 +33,10 @@ class Apply_Median(External_Filter):
     Output:
         Name of the output volume
     '''
-    def __init__(self, location_path = UTILITIES_DIR,save_img =(None,True) ,radius=1):
-        A_Filter.__init__(self, "apply_median", FILTER_TYPE.PRE_FILTER, location_path, built_in=False, save_img= save_img)
+    def __init__(self, location_path = UTILITIES_DIR,save_img =(None,True), 
+                 radius=1,  execute_if_exits = True):
+        A_Filter.__init__(self, "apply_median", FILTER_TYPE.PRE_FILTER, 
+                          location_path, built_in=False, save_img= save_img, execute_if_exits = execute_if_exits)
         self.radius = radius
     
     def set_params(self):
@@ -86,6 +89,23 @@ class Choose_Lungs(External_Filter):
     def set_params(self):
         self.params = []
     
+class Choose_Lungs2(External_Filter):
+    '''
+    Choose lungs
+    Inputs:
+        Name input volume
+    Outputs:
+        Name of the output volume
+    '''
+    
+    def __init__(self,label = 4, location_path = UTILITIES_DIR,save_img =(None,True)):
+        A_Filter.__init__(self, 'choose_lungsV2', FILTER_TYPE.PRE_FILTER, location_path, built_in=False, save_img = save_img, params_order=False)
+        self.label = label
+    
+    def set_params(self):
+        self.params = [self.label]
+    
+
 
 
 
@@ -255,6 +275,7 @@ class Hu_Threshold(A_Filter):
     def execute(self,inputimage, output = None):
         self.to_interface(inputimage)
         img = SimpleITK.GetArrayFromImage(self.input_path_and_image.image)
+        img[img < -1024] = -1024
         def getHuMeans(image, thr):
             #Returns the means under and upper a thr of an array
             return ( np.mean(image[image < thr]), np.mean(image[image >= thr]) )
@@ -276,9 +297,12 @@ class Hu_Threshold(A_Filter):
             img[img > self.thrPlusOne] = self.outside_val    
         
         self.output_path_and_image.image = SimpleITK.GetImageFromArray(img)
+        self.output_path_and_image.image.CopyInformation(self.input_path_and_image.image)
         self.output_path_and_image.path = self.output_path_and_image.path if output is None else output
         SimpleITK.WriteImage(self.output_path_and_image.image,self.output_path_and_image.path)
         return self
+
+
 
 class SRM(Fiji_Filter):
     def __init__(self, location_path= FIJI_DIR, macro_path = os.path.join(FIJI_MACROS_DIR, 'SRM.ijm'),
@@ -376,7 +400,65 @@ class Keep_N_Objects(A_Filter):
         SimpleITK.WriteImage(self.output_path_and_image.image,self.output_path_and_image.path)
          
         return self
+
+class Trim_Stomach(A_Filter):
+    def __init__(self, ct_image_filter ,save_img =(None,True) ):
+        A_Filter.__init__(self, 'Trim_stomach', FILTER_TYPE.OTHERS, built_in=True, save_img=save_img)
+        self.ct_image_filter = ct_image_filter
+            
+    def execute(self,inputimage, output = None):
+        print('TRIMMING',self.input_path_and_image.path)
+        self.to_interface(inputimage)
+        stomach_msk = trim_stomach(self.ct_image_filter.output_path_and_image.path, self.input_path_and_image.image)
+        self.output_path_and_image.image = SimpleITK.Mask(self.input_path_and_image.image, stomach_msk == 0)
+        self.output_path_and_image.path = self.output_path_and_image.path if output is None else output
+        SimpleITK.WriteImage(self.output_path_and_image.image,self.output_path_and_image.path)
+        return self
+      
+
+  
+
+
+def trim_stomach(image_real_bad_lungs, image_mask_bad_lungs ):
+    """
+    ITK images as input
+    """   
     
+    
+    shape_stats = SimpleITK.LabelShapeStatisticsImageFilter()
+    image_real_bad_lungs = SimpleITK.ReadImage(image_real_bad_lungs) if isinstance(image_real_bad_lungs, str) else image_real_bad_lungs
+    
+    print('image_mask_bad_lungs',image_mask_bad_lungs)
+    image_mask_bad_lungs.CopyInformation(image_real_bad_lungs)
+    masked_bad_lungs = SimpleITK.Mask(image_real_bad_lungs, image_mask_bad_lungs > 0, outsideValue=5000)
+    
+    SimpleITK.WriteImage(masked_bad_lungs, '/tmp/masked_trim_sth_lungs.mhd')
+    srm_filt = SRM(q=10, averages=True).execute('/tmp/masked_trim_sth_lungs.mhd')
+    srm_image = SimpleITK.ReadImage(srm_filt.output_path_and_image.path) #> 4
+    averages = np.unique(SimpleITK.GetArrayFromImage(srm_image))
+    
+    found_trachea = False
+    i = 0
+    while found_trachea == False and i < len(averages):
+      shape_stats.Execute(srm_image == averages[i])
+      bbox = shape_stats.GetBoundingBox(1)
+      print('average',averages[i],bbox)
+      if bbox[2] == 0 and bbox[5] > 10:
+        found_trachea = True
+      else:
+        i += 1
+    
+    
+    stomach_label = 1
+    if i > 0 and found_trachea:
+      stomach_label = i - 1
+    
+    print('STOMACH', stomach_label)
+    stomach = srm_image == averages[stomach_label]
+    stomach.CopyInformation(image_real_bad_lungs)
+    return stomach
+    #SimpleITK.WriteImage(srm_image == averages[stomach_label], os.path.join('/media/pmacias/DATA2/stommachs/', 'result_'+str(int(averages[i]))+name))
+        
 def isolated_object_info(itk_2D_binary_image):
     shape_stats = SimpleITK.LabelShapeStatisticsImageFilter()
     shape_stats.ComputePerimeterOn()
@@ -420,10 +502,72 @@ def naive_trachea_init(sphericity, distance, perimeter):
     rv_d = expon(scale = 1/halfnorm.pdf(0)) #roudness is more significant
     sphericity = sphericity if sphericity < 1 else 1.0
     return  rv_d.pdf(1 - sphericity) * rv.pdf(perimeter) * rv.pdf(distance)            
+
+
+
+
+
+def volumeVSslice(image_vol):
+  image_vol = image_vol > 0
+  stats = SimpleITK.LabelShapeStatisticsImageFilter()
+  stats.ComputePerimeterOn()
+  stats.ComputeFeretDiameterOn()
+  d = {}
+  for slc in range(image_vol.GetSize()[-1]):
+    feat = 0
+    stats.Execute(image_vol[:,:,slc])
+    if stats.GetNumberOfLabels() > 0:
+      feat = stats.GetPerimeter(1)
+    d[slc] = feat
+  return d
+    
+      
+
+def split_blobs(mask, smooth = 1):
+  dt = SimpleITK.DanielssonDistanceMapImageFilter()
+  dt.SetUseImageSpacing(True)
+  distim = dt.Execute(mask == 0)
+  
+  distimS = SimpleITK.SmoothingRecursiveGaussian(distim, sigma=smooth, normalizeAcrossScale=True) 
+  distim = distimS * SimpleITK.Cast(distim > 0, SimpleITK.sitkFloat32)
+  
+  peakF = SimpleITK.RegionalMaximaImageFilter()
+  peakF.SetForegroundValue(1)
+  peakF.FullyConnectedOn()
+  peaks  = peakF.Execute(distim)
+  
+  markers = SimpleITK.ConnectedComponent(peaks, fullyConnected=True)
+  
+  WS = SimpleITK.MorphologicalWatershedFromMarkers(-1 * distim, markerImage=markers, markWatershedLine=True, fullyConnected=True)
+  SimpleITK.WriteImage(WS, '/tmp/ws.mhd')
+  
         
 if __name__ == "__main__":
     import glob
-    print 'Filter.py'   
+    print 'Filter.py' 
+    summ = pd.read_csv('/home/pmacias/Descargas/Batch6-Sheet1.csv')
+    sub_summ  = summ[summ.Stomach_Included == 'Y'][summ.Lungs_Correctly_Chosen == 'Y']
+    ids = sub_summ.ID.values
+    main_path = '/media/amunoz/PHE_Studies/Lote_6_study_5449/MHDimgs/Results/'
+    #medians = glob.glob('/home/pmacias/Projects/MonkeysTuberculosis/TLS-Piped/TLS/Segmentation-application/Results_-200/*/*median.mhd')
+    for idi in ids[0:1]:
+      m = glob.glob(os.path.join(main_path,'*'+idi,'*apply_median.mhd' ) )[0]
+      mask = glob.glob(os.path.join(main_path,'*'+idi,'*choose_lungsV2.mhd' ) )[0]
+      print(m)
+      print(mask)
+      print('-------------------------------------')
+      mask_2_path = '/media/amunoz/PHE_Studies/Lote_6_study_5449/MHDimgs/Results/Seg_Prev_Res_Wk0_11V_251117_3/Wk0_11V_251117_3_choose_lungsV2.mhd'
+      image_2_path = '/media/amunoz/PHE_Studies/Lote_6_study_5449/MHDimgs/Results/Seg_Prev_Res_Wk0_11V_251117_3/Wk0_11V_251117_3_apply_median.mhd'
+      m = image_2_path
+      mask = mask_2_path
+      #mask_itk = SimpleITK.ReadImage(mask_2_path)
+      #mask_itk.SetSpacing( [0.255859, 0.255859, 0.625])
+      #pos = get_init_trachea_naive(mask_itk, animal_model=Extract_Trachea_FM.MACAQUE_EXPECTED_PERIMETER)
+      #print('POSITION', pos)
+      Trim_Stomach(SimpleITK.ReadImage(m)).execute(mask)
+      #trim_stomach(m,mask)
+      
+      #trim_stomach()
     #srm = SRM(save_img=('/tmp/srm_filter.mhd', False),q=25)
     #srm.execute("/tmp/flipped.mhd")
     
@@ -432,17 +576,40 @@ if __name__ == "__main__":
     #Mice
     
     #images = glob.glob('/media/pmacias/DATA2/amunoz/GSK/CropImagesAnalyzeFlipped/*/*_imageLungMask.mhd')
-    images = glob.glob('/media/pmacias/DATA2/amunoz/GSK/GSK_animals_new/TE0789/*/Segmentation/*_imageLungMask.mhd')
-    for im in images:
-        n = im.split('/')[-3]
-        print n
-        try:
-            img = SimpleITK.ReadImage(im)
-        except:
-            continue
-        img.SetSpacing([0.087622, 0.087622,0.087622])
-        img = SimpleITK.Flip(img, [False,False,True])
-        pos = get_init_trachea_naive(img, animal_model=Extract_Trachea_FM.MICE_EXPECTED_PERIMETER)
-        #pos = get_init_trachea_naive(img, animal_model=Extract_Trachea_FM.MACAQUE_EXPECTED_PERIMETER)
-        SimpleITK.WriteImage(img[:,:,pos[-1]], '/tmp/'+n+'.mhd')
-        print pos
+    
+    #image_mask_bad_lungs = SimpleITK.ReadImage("/home/pmacias/Projects/MonkeysTuberculosis/TLS-Piped/TLS/Segmentation-application/Results/Seg_Prev_Res_i2/i2_choose_lungsV2.mhd")
+    #image_real_bad_lungs = SimpleITK.ReadImage('/home/pmacias/Projects/MonkeysTuberculosis/TLS-Piped/TLS/Segmentation-application/Results/Seg_Prev_Res_i2/i2_apply_median.mhd')
+    
+
+    
+    #Labelize().execute(mask_n > 0)
+    #Keep_N_Objects(feature=)
+    
+#    otsu = SimpleITK.OtsuMultipleThresholds(masked_bad_lungs, numberOfThresholds = 2)
+#    SimpleITK.WriteImage(otsu , '/tmp/Otsu.mhd')
+#    image_mask_bad_lungs = SimpleITK.Mask(image_mask_bad_lungs, otsu > 0, outsideValue=0)
+#    SimpleITK.WriteImage(image_mask_bad_lungs > 0 , '/tmp/image_mask_bad_lungs.mhd')
+    
+    
+    
+    
+#    print('LABELS',shape_stats.GetNumberOfLabels())
+#    print('SIZE', shape_stats.GetPhysicalSize(1))
+#    er = Erode(radius=5, foregorund=1).execute(image_bad_lungs > 0)
+#    print(er.output_path_and_image.path)
+    #lab = Labelize().execute('/tmp/image_mask_bad_lungs.mhd')
+#    
+#    images = glob.glob('/media/pmacias/DATA2/amunoz/GSK/GSK_animals_new/TE0789/*/Segmentation/*_imageLungMask.mhd')
+#    for im in images:
+#        n = im.split('/')[-3]
+#        print n
+#        try:
+#            img = SimpleITK.ReadImage(im)
+#        except:
+#            continue
+#        img.SetSpacing([0.087622, 0.087622,0.087622])
+#        img = SimpleITK.Flip(img, [False,False,True])
+#        pos = get_init_trachea_naive(img, animal_model=Extract_Trachea_FM.MICE_EXPECTED_PERIMETER)
+#        #pos = get_init_trachea_naive(img, animal_model=Extract_Trachea_FM.MACAQUE_EXPECTED_PERIMETER)
+#        SimpleITK.WriteImage(img[:,:,pos[-1]], '/tmp/'+n+'.mhd')
+#        print pos
