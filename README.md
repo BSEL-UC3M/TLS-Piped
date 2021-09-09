@@ -55,3 +55,20 @@ sudo apt-get install g++ gcc git-core git-svn libfontconfig-dev libgl1-mesa-dev 
 ~~~
 
 In this version is necessary to perform the compilation in two phases. A first compilation to install the dependecies ```CMake TLS_SECOND_STEP ``` (compilation option unchecked) and second one with ```CMake TLS_SECOND_STEP ``` checked.
+
+## References 
+```
+@article{Gordaliza2018,
+doi = {10.1038/s41598-018-28100-x},
+issn = {2045-2322},
+journal = {Sci. Rep.},
+keywords = {Biomedical engineering,Computer science,Experimental models of disease,Infectious,disease epidemiology},
+month = {dec},
+number = {1},
+publisher = {Nature Publishing Group},
+title = {{Unsupervised CT Lung Image Segmentation of a Mycobacterium Tuberculosis Infection Model}},
+url = {http://www.nature.com/articles/s41598-018-28100-x},
+volume = {8},
+year = {2018}
+}
+```
